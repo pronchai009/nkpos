@@ -71,6 +71,17 @@ create table payouts (
 
 -- ตัวรันเลขรหัสสินค้าอัตโนมัติ กันเลขซ้ำ
 create sequence item_code_seq start 1;
+
+-- ฟังก์ชันให้เว็บเรียกขอ "เลขรหัสถัดไป" แบบปลอดภัย (เว็บเรียกผ่าน supabase.rpc)
+create or replace function get_next_item_code()
+returns text as $$
+declare
+  next_val bigint;
+begin
+  next_val := nextval('item_code_seq');
+  return lpad(next_val::text, 4, '0');
+end;
+$$ language plpgsql;
 ```
 
 > จุดสำคัญ: `item_code_seq` คือตัวที่แก้ปัญหาเดิม (เลขรันเก็บแค่ในเบราว์เซอร์) — database จะเป็นคนออกเลขให้ ไม่ซ้ำแม้เปิดจากหลายเครื่องพร้อมกัน
