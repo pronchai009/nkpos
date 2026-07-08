@@ -1,0 +1,971 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>ระบบหลังบ้าน ร้านเสื้อมือสอง</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Chonburi&family=Noto+Sans+Thai:wght@400;500;600;700;800&family=IBM+Plex+Sans+Thai:wght@400;500;600;700&display=swap" rel="stylesheet">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script>
+  // ===== ตั้งค่า Supabase (แก้ 2 บรรทัดนี้เป็นของโปรเจกต์คุณ) =====
+  const SUPABASE_URL = 'https://YOUR_PROJECT.supabase.co';
+  const SUPABASE_ANON_KEY = 'YOUR_ANON_PUBLIC_KEY';
+  const supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+</script>
+
+<style>
+  :root{
+    --bg: #F6F2EA;
+    --paper: #FFFFFF;
+    --ink: #2B2A26;
+    --ink-soft: #6B6558;
+    --teal: #285C55;
+    --teal-dark: #1B413C;
+    --gold: #C99A3E;
+    --gold-soft: #F0DDAE;
+    --coral: #C1553B;
+    --coral-soft: #F5DCD4;
+    --green: #5F8B6A;
+    --green-soft: #DCE9DE;
+    --line: #E4DCC9;
+    --radius: 20px;
+  }
+  *{box-sizing:border-box;}
+  body{
+    margin:0;
+    background:var(--bg);
+    color:var(--ink);
+    font-family:'Noto Sans Thai','IBM Plex Sans Thai',sans-serif;
+    -webkit-font-smoothing:antialiased;
+  }
+  .app{max-width:1180px;margin:0 auto;padding:20px 20px 60px;}
+
+  /* HEADER */
+  .shop-header{
+    display:flex;align-items:center;justify-content:space-between;
+    padding:18px 6px 22px;
+  }
+  .shop-title{
+    font-family:'Chonburi',serif;
+    font-size:30px;color:var(--teal-dark);
+    display:flex;align-items:center;gap:12px;
+  }
+  .shop-title .tag-dot{
+    width:16px;height:16px;border-radius:50%;background:var(--gold);
+    box-shadow:0 0 0 4px var(--gold-soft);
+  }
+  .clock-pill{
+    background:var(--paper);border:2px solid var(--line);
+    border-radius:999px;padding:10px 18px;font-size:15px;color:var(--ink-soft);
+    font-weight:600;
+  }
+
+  /* NAV - big tabs */
+  .tabbar{
+    display:grid;grid-template-columns:repeat(5,1fr);gap:10px;margin-bottom:26px;
+  }
+  .tab{
+    background:var(--paper);border:2.5px solid var(--line);border-radius:16px;
+    padding:14px 8px;text-align:center;cursor:pointer;font-weight:700;font-size:15.5px;
+    color:var(--ink-soft);transition:.15s;user-select:none;
+  }
+  .tab .tab-emoji{display:block;font-size:26px;margin-bottom:4px;}
+  .tab:hover{border-color:var(--gold);}
+  .tab.active{
+    background:var(--teal);border-color:var(--teal);color:#fff;
+    box-shadow:0 6px 0 var(--teal-dark);
+    transform:translateY(-2px);
+  }
+
+  .screen{display:none;}
+  .screen.active{display:block;animation:fade .25s ease;}
+  @keyframes fade{from{opacity:0;transform:translateY(6px);}to{opacity:1;transform:translateY(0);}}
+
+  .section-title{
+    font-family:'Chonburi',serif;font-size:24px;color:var(--teal-dark);margin:0 0 18px 4px;
+  }
+
+  /* ===== HOME ===== */
+  .home-grid{
+    display:grid;grid-template-columns:1fr 1fr;gap:20px;
+  }
+  .big-btn{
+    background:var(--paper);border:3px solid var(--line);border-radius:var(--radius);
+    padding:38px 20px;text-align:center;cursor:pointer;transition:.15s;
+    box-shadow:0 5px 0 var(--line);
+  }
+  .big-btn:hover{border-color:var(--gold);transform:translateY(-3px);box-shadow:0 8px 0 var(--gold-soft);}
+  .big-btn .emoji{font-size:52px;display:block;margin-bottom:14px;}
+  .big-btn .label{font-size:22px;font-weight:800;color:var(--teal-dark);}
+  .big-btn .sub{font-size:14.5px;color:var(--ink-soft);margin-top:6px;}
+  .home-top-stats{
+    display:grid;grid-template-columns:1fr 1fr 1fr;gap:16px;margin-bottom:24px;
+  }
+  .mini-stat{
+    background:var(--teal);color:#fff;border-radius:16px;padding:18px 20px;
+  }
+  .mini-stat .n{font-size:30px;font-weight:800;font-family:'IBM Plex Sans Thai';}
+  .mini-stat .l{font-size:14px;opacity:.85;margin-top:4px;}
+
+  /* ===== SELL SCREEN ===== */
+  .sell-layout{display:grid;grid-template-columns:1.3fr 1fr;gap:24px;}
+  .search-bar{
+    display:flex;gap:10px;margin-bottom:16px;
+  }
+  .search-bar input{
+    flex:1;padding:16px 18px;font-size:17px;border:2.5px solid var(--line);
+    border-radius:14px;font-family:inherit;
+  }
+  .scan-btn{
+    background:var(--gold);color:#fff;border:none;border-radius:14px;
+    padding:0 22px;font-size:22px;cursor:pointer;
+  }
+  .product-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:14px;}
+  .product-card{
+    background:var(--paper);border:2.5px solid var(--line);border-radius:16px;
+    overflow:hidden;cursor:pointer;transition:.15s;
+  }
+  .product-card:hover{border-color:var(--teal);}
+  .product-card.selected{border-color:var(--gold);box-shadow:0 0 0 3px var(--gold-soft);}
+  .product-photo{
+    height:90px;background:linear-gradient(135deg,#EDE6D6,#DED2B0);
+    display:flex;align-items:center;justify-content:center;font-size:32px;
+  }
+  .product-info{padding:10px 12px;}
+  .product-info .pname{font-weight:700;font-size:14.5px;}
+  .owner-chip{
+    display:inline-flex;align-items:center;gap:5px;font-size:12.5px;
+    color:var(--ink-soft);margin-top:5px;font-weight:600;
+  }
+  .owner-dot{width:9px;height:9px;border-radius:50%;display:inline-block;}
+
+  .ticket-panel{
+    background:var(--paper);border:3px dashed var(--gold);border-radius:var(--radius);
+    padding:26px;position:relative;
+  }
+  .ticket-panel::before{
+    content:'';position:absolute;top:22px;left:-11px;width:20px;height:20px;
+    background:var(--bg);border-radius:50%;border:3px dashed var(--gold);
+  }
+  .ticket-title{font-family:'Chonburi',serif;font-size:19px;color:var(--teal-dark);margin-bottom:16px;}
+  .ticket-row{display:flex;justify-content:space-between;padding:9px 0;border-bottom:1px dashed var(--line);font-size:15px;}
+  .ticket-row.total{font-weight:800;font-size:19px;color:var(--teal-dark);border-bottom:none;padding-top:14px;}
+  .price-input{
+    width:100%;padding:16px;font-size:22px;font-weight:700;text-align:center;
+    border:2.5px solid var(--line);border-radius:12px;margin:12px 0 18px;font-family:inherit;
+    color:var(--teal-dark);
+  }
+  .pay-options{display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:18px;}
+  .pay-btn{
+    padding:20px 10px;border-radius:14px;border:2.5px solid var(--line);
+    background:var(--paper);font-weight:800;font-size:17px;cursor:pointer;text-align:center;
+  }
+  .pay-btn .pe{font-size:28px;display:block;margin-bottom:4px;}
+  .pay-btn.selected.cash{border-color:var(--green);background:var(--green-soft);color:#2E5A3B;}
+  .pay-btn.selected.transfer{border-color:var(--teal);background:#DCEBE8;color:var(--teal-dark);}
+  .confirm-btn{
+    width:100%;padding:20px;background:var(--teal);color:#fff;border:none;
+    border-radius:14px;font-size:19px;font-weight:800;cursor:pointer;
+    box-shadow:0 5px 0 var(--teal-dark);font-family:inherit;
+  }
+  .confirm-btn:hover{transform:translateY(-2px);}
+
+  /* ===== ADD PRODUCT ===== */
+  .add-steps{display:flex;gap:8px;margin-bottom:24px;}
+  .step-pill{
+    flex:1;text-align:center;padding:10px;border-radius:10px;background:var(--paper);
+    border:2px solid var(--line);font-weight:700;font-size:13.5px;color:var(--ink-soft);
+  }
+  .step-pill.done{background:var(--green-soft);border-color:var(--green);color:#2E5A3B;}
+  .step-pill.current{background:var(--teal);border-color:var(--teal);color:#fff;}
+  .add-card{background:var(--paper);border:2.5px solid var(--line);border-radius:var(--radius);padding:30px;}
+  .photo-drop{
+    height:180px;border:3px dashed var(--line);border-radius:16px;
+    display:flex;flex-direction:column;align-items:center;justify-content:center;
+    color:var(--ink-soft);cursor:pointer;margin-bottom:22px;background:#FBF8F2;
+  }
+  .photo-drop .pe{font-size:44px;margin-bottom:8px;}
+  .field-label{font-weight:700;font-size:15.5px;margin:0 0 8px 2px;color:var(--teal-dark);}
+  .owner-picker{display:flex;gap:14px;margin-bottom:22px;flex-wrap:wrap;}
+  .owner-avatar{
+    width:64px;height:64px;border-radius:50%;display:flex;align-items:center;justify-content:center;
+    font-size:22px;font-weight:800;color:#fff;cursor:pointer;border:3px solid transparent;
+    position:relative;
+  }
+  .owner-avatar span.nm{
+    position:absolute;top:70px;font-size:12px;color:var(--ink);font-weight:700;white-space:nowrap;
+    left:50%;transform:translateX(-50%);
+  }
+  .owner-avatar.selected{border-color:var(--gold);box-shadow:0 0 0 3px var(--gold-soft);}
+  .owner-wrap{display:flex;flex-direction:column;align-items:center;position:relative;padding-bottom:26px;}
+  .grade-picker{display:flex;gap:10px;margin-bottom:22px;}
+  .grade-btn{
+    flex:1;padding:16px;text-align:center;border-radius:12px;border:2.5px solid var(--line);
+    font-weight:800;font-size:16px;cursor:pointer;background:var(--paper);
+  }
+  .grade-btn.selected{border-color:var(--gold);background:var(--gold-soft);}
+  .grid-2{display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-bottom:22px;}
+  .input-box{padding:15px;border:2.5px solid var(--line);border-radius:12px;font-size:16px;width:100%;font-family:inherit;}
+
+  /* ===== OWNER SUMMARY ===== */
+  .owner-list{display:flex;flex-direction:column;gap:14px;}
+  .owner-row{
+    background:var(--paper);border:2.5px solid var(--line);border-radius:16px;
+    padding:18px 22px;display:flex;align-items:center;gap:18px;
+  }
+  .o-avatar{width:52px;height:52px;border-radius:50%;flex:none;display:flex;align-items:center;justify-content:center;color:#fff;font-weight:800;font-size:18px;}
+  .o-name{font-weight:800;font-size:17px;flex:1;}
+  .o-meta{font-size:13.5px;color:var(--ink-soft);margin-top:3px;}
+  .o-amount{text-align:right;margin-right:18px;}
+  .o-amount .num{font-size:20px;font-weight:800;color:var(--teal-dark);}
+  .o-amount .lbl{font-size:12.5px;color:var(--ink-soft);}
+  .pay-status-btn{
+    padding:12px 18px;border-radius:12px;font-weight:700;font-size:14px;border:2px solid;cursor:pointer;white-space:nowrap;
+  }
+  .pay-status-btn.unpaid{background:var(--coral-soft);border-color:var(--coral);color:#8B3A26;}
+  .pay-status-btn.paid{background:var(--green-soft);border-color:var(--green);color:#2E5A3B;}
+
+  /* ===== DASHBOARD ===== */
+  .dash-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:18px;margin-bottom:26px;}
+  .tag-card{
+    background:var(--paper);border-radius:16px;padding:22px 24px 22px 30px;position:relative;
+    border:2.5px solid var(--line);clip-path:polygon(18px 0,100% 0,100% 100%,18px 100%,0 50%);
+  }
+  .tag-card .hole{position:absolute;left:9px;top:50%;transform:translateY(-50%);width:8px;height:8px;border-radius:50%;background:var(--bg);border:2px solid var(--line);}
+  .tag-card .num{font-size:28px;font-weight:800;color:var(--teal-dark);font-family:'IBM Plex Sans Thai';}
+  .tag-card .lbl{font-size:14px;color:var(--ink-soft);margin-top:4px;font-weight:600;}
+  .tag-card.accent-gold{border-color:var(--gold);} .tag-card.accent-gold .hole{border-color:var(--gold);}
+  .tag-card.accent-green{border-color:var(--green);} .tag-card.accent-green .hole{border-color:var(--green);}
+  .split-row{display:flex;gap:8px;margin-top:10px;}
+  .split-pill{flex:1;text-align:center;padding:6px;border-radius:8px;font-size:12.5px;font-weight:700;}
+  .split-pill.cash{background:var(--green-soft);color:#2E5A3B;}
+  .split-pill.transfer{background:#DCEBE8;color:var(--teal-dark);}
+
+  .panel-2col{display:grid;grid-template-columns:1.1fr 1fr;gap:22px;}
+  .panel{background:var(--paper);border:2.5px solid var(--line);border-radius:18px;padding:22px 24px;}
+  .panel h3{font-family:'Chonburi',serif;font-size:18px;color:var(--teal-dark);margin:0 0 16px;}
+  .best-row{display:flex;align-items:center;gap:12px;padding:10px 0;border-bottom:1px solid var(--line);}
+  .best-row:last-child{border-bottom:none;}
+  .best-photo{width:44px;height:44px;border-radius:10px;background:linear-gradient(135deg,#EDE6D6,#DED2B0);display:flex;align-items:center;justify-content:center;font-size:18px;}
+  .best-name{font-weight:700;font-size:14.5px;flex:1;}
+  .best-n{font-weight:800;color:var(--teal-dark);font-size:15px;}
+  .alert-row{
+    display:flex;align-items:center;gap:12px;padding:12px;background:var(--coral-soft);
+    border-radius:12px;margin-bottom:10px;
+  }
+  .alert-row .ae{font-size:22px;}
+  .alert-row .at{font-size:13.5px;font-weight:700;color:#8B3A26;}
+
+  @media(max-width:820px){
+    .home-grid{grid-template-columns:1fr;}
+    .home-top-stats{grid-template-columns:1fr;}
+    .sell-layout{grid-template-columns:1fr;}
+    .product-grid{grid-template-columns:repeat(2,1fr);}
+    .dash-grid{grid-template-columns:1fr;}
+    .panel-2col{grid-template-columns:1fr;}
+    .tabbar{grid-template-columns:repeat(3,1fr);}
+    .grid-2{grid-template-columns:1fr;}
+  }
+</style>
+</head>
+<body>
+<div class="app">
+
+  <div class="shop-header">
+    <div class="shop-title"><span class="tag-dot"></span>ร้านคุณยายเสื้อสวย</div>
+    <div class="clock-pill">🗓️ วันอังคาร 7 ก.ค. 69</div>
+  </div>
+
+  <div class="tabbar">
+    <div class="tab active" data-screen="home"><span class="tab-emoji">🏠</span>หน้าแรก</div>
+    <div class="tab" data-screen="sell"><span class="tab-emoji">💰</span>ขายสินค้า</div>
+    <div class="tab" data-screen="add"><span class="tab-emoji">📸</span>เพิ่มสินค้า</div>
+    <div class="tab" data-screen="owners"><span class="tab-emoji">🧾</span>สรุปเจ้าของ</div>
+    <div class="tab" data-screen="dash"><span class="tab-emoji">📊</span>แดชบอร์ด</div>
+  </div>
+
+  <!-- HOME -->
+  <div class="screen active" id="home">
+    <div class="home-top-stats">
+      <div class="mini-stat"><div class="n">12</div><div class="l">ขายวันนี้ (ชิ้น)</div></div>
+      <div class="mini-stat"><div class="n">3,450 ฿</div><div class="l">ยอดขายวันนี้</div></div>
+      <div class="mini-stat"><div class="n">186</div><div class="l">สินค้าในร้านตอนนี้</div></div>
+    </div>
+    <div class="home-grid">
+      <div class="big-btn" onclick="go('add')">
+        <span class="emoji">📸</span>
+        <div class="label">เพิ่มสินค้าใหม่</div>
+        <div class="sub">ถ่ายรูป ใส่ราคา รับฝาก</div>
+      </div>
+      <div class="big-btn" onclick="go('sell')">
+        <span class="emoji">💰</span>
+        <div class="label">ขายสินค้า</div>
+        <div class="sub">เลือกของ รับเงิน จบเลย</div>
+      </div>
+      <div class="big-btn" onclick="go('owners')">
+        <span class="emoji">🧾</span>
+        <div class="label">สรุปเจ้าของ</div>
+        <div class="sub">ใครต้องได้เงินเท่าไหร่</div>
+      </div>
+      <div class="big-btn" onclick="go('dash')">
+        <span class="emoji">📊</span>
+        <div class="label">ดูยอดขาย</div>
+        <div class="sub">ภาพรวมร้านวันนี้</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- SELL -->
+  <div class="screen" id="sell">
+    <div class="section-title">💰 ขายสินค้า</div>
+    <div class="sell-layout">
+      <div>
+        <div class="search-bar">
+          <input type="text" id="searchInput" placeholder="พิมพ์ชื่อสินค้า หรือแตะสแกนบาร์โค้ด..." oninput="renderProductGrid(this.value)">
+          <button class="scan-btn">📷</button>
+        </div>
+        <div class="product-grid" id="productGrid">
+          <!-- การ์ดสินค้าจะถูกสร้างด้วย JS จากตาราง products (status = available) -->
+        </div>
+      </div>
+
+      <div class="ticket-panel">
+        <div class="ticket-title">🏷️ สรุปการขาย</div>
+        <div class="ticket-row"><span>สินค้า</span><span id="ticketName">— เลือกสินค้าก่อน —</span></div>
+        <div class="ticket-row"><span>เจ้าของ</span><span id="ticketOwner">—</span></div>
+        <div class="ticket-row"><span>ตั้งราคาไว้</span><span id="ticketListPrice">— ฿</span></div>
+
+        <div class="field-label" style="margin-top:14px;">ราคาที่ขายได้จริง</div>
+        <input class="price-input" id="soldPriceInput" value="0" oninput="updateTicketTotals()">
+
+        <div class="field-label">วิธีจ่ายเงิน</div>
+        <div class="pay-options">
+          <div class="pay-btn selected cash" data-method="cash"><span class="pe">💵</span>เงินสด</div>
+          <div class="pay-btn" data-method="transfer"><span class="pe">🏦</span>โอนเงิน</div>
+        </div>
+
+        <div class="ticket-row total"><span>ร้านได้ (20%)</span><span id="ticketShopCut">0 ฿</span></div>
+        <div class="ticket-row total"><span>เจ้าของได้</span><span id="ticketOwnerCut">0 ฿</span></div>
+
+        <button class="confirm-btn" id="confirmSaleBtn" style="margin-top:16px;" onclick="confirmSale()">✅ ยืนยันการขาย</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ADD PRODUCT -->
+  <div class="screen" id="add">
+    <div class="section-title">📸 เพิ่มสินค้าใหม่</div>
+    <div class="add-steps">
+      <div class="step-pill current" id="stepPill1">1. สร้างรหัส + พิมพ์ QR</div>
+      <div class="step-pill" id="stepPill2">2. ถ่ายรูป</div>
+      <div class="step-pill" id="stepPill3">3. รายละเอียด</div>
+      <div class="step-pill" id="stepPill4">4. เจ้าของ &amp; ราคา</div>
+    </div>
+
+    <!-- STEP 1: CODE + QR -->
+    <div class="add-card" id="codeStepCard" style="text-align:center;">
+      <div style="font-size:15px;color:var(--ink-soft);font-weight:600;margin-bottom:6px;">รหัสสินค้าตัวถัดไป</div>
+      <div id="codeDisplay" style="font-family:'IBM Plex Sans Thai';font-size:56px;font-weight:800;color:var(--teal-dark);letter-spacing:4px;margin-bottom:18px;">— — — —</div>
+
+      <div id="qrWrap" style="display:none;flex-direction:column;align-items:center;margin-bottom:20px;">
+        <div style="background:#fff;padding:14px;border-radius:14px;border:2.5px solid var(--line);display:inline-block;">
+          <div id="qrcode"></div>
+        </div>
+        <div style="font-size:13px;color:var(--ink-soft);margin-top:10px;">แปะป้ายนี้บนตัวสินค้า แล้วกด "ต่อไป"</div>
+      </div>
+
+      <button class="confirm-btn" id="genCodeBtn" style="max-width:340px;margin:0 auto;display:block;" onclick="generateCode()">🏷️ สร้างรหัส + พิมพ์ QR</button>
+      <button class="confirm-btn" id="printBtn" style="max-width:340px;margin:14px auto 0;display:none;background:var(--gold);box-shadow:0 5px 0 #9c7827;" onclick="doPrint()">🖨️ สั่งพิมพ์ป้าย QR</button>
+      <button class="confirm-btn" id="nextToPhotoBtn" style="max-width:340px;margin:14px auto 0;display:none;" onclick="goStep(2)">➜ ต่อไป: ถ่ายรูปสินค้า</button>
+
+      <div style="margin-top:22px;font-size:13px;color:var(--ink-soft);border-top:1px solid var(--line);padding-top:16px;">
+        เลขรันอัตโนมัติทีละ 1 เริ่มจาก <b>0000</b> ไม่มีวันซ้ำ ไม่ต้องคิดเอง ไม่ต้องเขียนมือ
+      </div>
+    </div>
+
+    <!-- STEP 2: PHOTO -->
+    <div class="add-card" id="photoStepCard" style="display:none;">
+      <div style="display:flex;align-items:center;gap:10px;margin-bottom:20px;background:var(--gold-soft);padding:12px 16px;border-radius:12px;">
+        <span style="font-size:22px;">🏷️</span>
+        <span style="font-weight:700;color:var(--teal-dark);">รหัสสินค้าตัวนี้คือ <span id="codeReminder" style="font-size:18px;">0000</span></span>
+      </div>
+      <div class="photo-drop" id="photoDrop" onclick="document.getElementById('photoInput').click()">
+        <span class="pe">📷</span>
+        แตะเพื่อถ่ายรูปสินค้า
+      </div>
+      <input type="file" accept="image/*" capture="environment" id="photoInput" style="display:none">
+      <button class="confirm-btn" onclick="goStep(3)">➜ ต่อไป: กรอกรายละเอียด</button>
+    </div>
+
+    <!-- STEP 3: DETAILS -->
+    <div class="add-card" id="detailStepCard" style="display:none;">
+      <div style="display:flex;align-items:center;gap:10px;margin-bottom:20px;background:var(--gold-soft);padding:12px 16px;border-radius:12px;">
+        <span style="font-size:22px;">🏷️</span>
+        <span style="font-weight:700;color:var(--teal-dark);">รหัสสินค้าตัวนี้คือ <span class="codeReminder" style="font-size:18px;">0000</span></span>
+      </div>
+      <div class="grid-2">
+        <div>
+          <div class="field-label">ประเภทสินค้า</div>
+          <select class="input-box" id="categorySelect">
+            <option>เสื้อยืด</option>
+            <option>เสื้อเชิ้ต</option>
+            <option>กางเกง</option>
+            <option>กระโปรง / เดรส</option>
+            <option>แจ็คเก็ต</option>
+          </select>
+        </div>
+        <div>
+          <div class="field-label">ไซส์</div>
+          <select class="input-box" id="sizeSelect">
+            <option>S</option><option>M</option><option>L</option><option>XL</option>
+          </select>
+        </div>
+      </div>
+
+      <div class="field-label">สภาพสินค้า</div>
+      <div class="grade-picker">
+        <div class="grade-btn selected" data-grade="A">A<br><span style="font-weight:400;font-size:12px;">เกือบใหม่</span></div>
+        <div class="grade-btn" data-grade="B">B<br><span style="font-weight:400;font-size:12px;">มีตำหนิเล็กน้อย</span></div>
+        <div class="grade-btn" data-grade="C">C<br><span style="font-weight:400;font-size:12px;">ใช้งานมาเยอะ</span></div>
+      </div>
+      <button class="confirm-btn" onclick="goStep(4)">➜ ต่อไป: เจ้าของ &amp; ราคา</button>
+    </div>
+
+    <!-- STEP 4: OWNER + PRICE -->
+    <div class="add-card" id="ownerStepCard" style="display:none;">
+      <div style="display:flex;align-items:center;gap:10px;margin-bottom:20px;background:var(--gold-soft);padding:12px 16px;border-radius:12px;">
+        <span style="font-size:22px;">🏷️</span>
+        <span style="font-weight:700;color:var(--teal-dark);">รหัสสินค้าตัวนี้คือ <span class="codeReminder" style="font-size:18px;">0000</span></span>
+      </div>
+      <div class="field-label">เจ้าของสินค้า (แตะเลือก)</div>
+      <div class="owner-picker" id="ownerPicker">
+        <!-- แถวเจ้าของจะถูกสร้างด้วย JS จากตาราง owners ใน Supabase -->
+      </div>
+
+      <div class="grid-2">
+        <div>
+          <div class="field-label">ราคาตั้งขาย</div>
+          <input class="input-box" id="listPriceInput" placeholder="เช่น 250">
+        </div>
+        <div>
+          <div class="field-label">วันที่รับฝาก</div>
+          <input class="input-box" value="7 ก.ค. 2569" disabled style="color:var(--ink-soft)">
+        </div>
+      </div>
+
+      <button class="confirm-btn" id="saveProductBtn" onclick="saveProduct()">✅ บันทึกสินค้าเข้าระบบ</button>
+    </div>
+
+    <div class="add-card" id="doneStepCard" style="display:none;text-align:center;">
+      <div style="font-size:52px;margin-bottom:10px;">🎉</div>
+      <div style="font-size:20px;font-weight:800;color:var(--teal-dark);margin-bottom:8px;">บันทึกสินค้ารหัส <span class="codeReminder">0000</span> เรียบร้อย!</div>
+      <div style="font-size:14.5px;color:var(--ink-soft);margin-bottom:22px;">สินค้าพร้อมขายแล้ว ไปเพิ่มตัวถัดไปได้เลย</div>
+      <button class="confirm-btn" style="max-width:320px;margin:0 auto;" onclick="resetAdd()">➕ เพิ่มสินค้าตัวถัดไป</button>
+    </div>
+  </div>
+
+  <!-- OWNER SUMMARY -->
+  <div class="screen" id="owners">
+    <div class="section-title">🧾 สรุปยอดแต่ละเจ้าของ</div>
+    <div class="owner-list" id="ownerList">
+      <!-- แถวสรุปแต่ละเจ้าของจะถูกสร้างด้วย JS จากตาราง payouts -->
+    </div>
+  </div>
+
+  <!-- DASHBOARD -->
+  <div class="screen" id="dash">
+    <div class="section-title">📊 ภาพรวมร้านวันนี้</div>
+    <div class="dash-grid">
+      <div class="tag-card accent-gold"><div class="hole"></div>
+        <div class="num" id="dashTodayTotal">0 ฿</div><div class="lbl" id="dashTodayCount">ยอดขายวันนี้ (0 ชิ้น)</div>
+        <div class="split-row">
+          <div class="split-pill cash" id="dashCashTotal">💵 เงินสด 0</div>
+          <div class="split-pill transfer" id="dashTransferTotal">🏦 โอน 0</div>
+        </div>
+      </div>
+      <div class="tag-card accent-green"><div class="hole"></div>
+        <div class="num" id="dashCommission">0 ฿</div><div class="lbl">ค่าคอมมิชชั่นร้านวันนี้</div>
+      </div>
+      <div class="tag-card"><div class="hole"></div>
+        <div class="num" id="dashStockCount">0 ชิ้น</div><div class="lbl">สินค้าคงเหลือทั้งหมด</div>
+      </div>
+    </div>
+
+    <div class="panel-2col">
+      <div class="panel">
+        <h3>🏆 ขายดี 5 อันดับ (เดือนนี้)</h3>
+        <div id="dashBestSellers"><!-- JS เติมจากตาราง sales --></div>
+      </div>
+      <div class="panel">
+        <h3>⏰ ต้องดูแลด่วน</h3>
+        <div id="dashAlerts"><!-- JS เติม: ค้างสต๊อกนาน + เจ้าของยังไม่ได้รับเงิน --></div>
+      </div>
+    </div>
+  </div>
+
+</div>
+
+<script>
+  /* ===================================================================
+     STATE
+  =================================================================== */
+  let ownersCache = [];
+  let productsCache = [];
+  let currentItemCode = null;
+  let compressedPhotoBlob = null;   // รูปที่บีบอัดแล้ว รอตอนกด "บันทึกสินค้า" ค่อยอัปโหลด
+  let selectedOwnerId = null;
+  let selectedGrade = 'A';
+  let selectedProduct = null;
+  let selectedPaymentMethod = 'cash';
+  const SHOP_COMMISSION_RATE = 0.20;
+
+  /* ===================================================================
+     NAVIGATION — โหลดข้อมูลของหน้านั้นทุกครั้งที่สลับแท็บ
+  =================================================================== */
+  function go(name){
+    document.querySelectorAll('.screen').forEach(s=>s.classList.remove('active'));
+    document.querySelectorAll('.tab').forEach(t=>t.classList.remove('active'));
+    document.getElementById(name).classList.add('active');
+    document.querySelector('.tab[data-screen="'+name+'"]').classList.add('active');
+
+    if(name === 'sell') renderProductGrid();
+    if(name === 'owners') loadOwnerSummary();
+    if(name === 'dash') loadDashboard();
+  }
+  document.querySelectorAll('.tab').forEach(tab=>{
+    tab.addEventListener('click',()=>go(tab.getAttribute('data-screen')));
+  });
+
+  document.querySelectorAll('.pay-btn').forEach(btn=>{
+    btn.addEventListener('click',()=>{
+      document.querySelectorAll('.pay-btn').forEach(b=>b.classList.remove('selected','cash','transfer'));
+      const method = btn.getAttribute('data-method');
+      btn.classList.add('selected', method);
+      selectedPaymentMethod = method;
+    });
+  });
+
+  document.querySelectorAll('.grade-btn').forEach(btn=>{
+    btn.addEventListener('click',()=>{
+      document.querySelectorAll('.grade-btn').forEach(b=>b.classList.remove('selected'));
+      btn.classList.add('selected');
+      selectedGrade = btn.getAttribute('data-grade');
+    });
+  });
+
+  /* ===================================================================
+     STEP 1 — สร้างรหัสสินค้า (ดึงจาก Postgres sequence ผ่าน RPC function
+     ต้องสร้างฟังก์ชัน get_next_item_code() ใน SQL Editor ก่อน — ดู README)
+  =================================================================== */
+  async function generateCode(){
+    const btn = document.getElementById('genCodeBtn');
+    btn.disabled = true; btn.textContent = 'กำลังสร้างรหัส...';
+
+    const { data, error } = await supabase.rpc('get_next_item_code');
+
+    btn.disabled = false; btn.textContent = '🏷️ สร้างรหัส + พิมพ์ QR';
+    if(error){ alert('สร้างรหัสไม่สำเร็จ: ' + error.message); return; }
+
+    currentItemCode = data;
+    document.getElementById('codeDisplay').textContent = currentItemCode.split('').join(' ');
+    document.querySelectorAll('.codeReminder').forEach(el=> el.textContent = currentItemCode);
+
+    const qrEl = document.getElementById('qrcode');
+    qrEl.innerHTML = '';
+    new QRCode(qrEl, { text: 'ITEM-' + currentItemCode, width:150, height:150, colorDark:'#1B413C', colorLight:'#ffffff' });
+
+    document.getElementById('qrWrap').style.display = 'flex';
+    document.getElementById('genCodeBtn').style.display = 'none';
+    document.getElementById('printBtn').style.display = 'block';
+  }
+
+  function doPrint(){
+    document.getElementById('printBtn').textContent = '✓ พิมพ์ป้ายแล้ว';
+    document.getElementById('printBtn').style.background = 'var(--green)';
+    document.getElementById('printBtn').style.boxShadow = '0 5px 0 #3d6b48';
+    document.getElementById('nextToPhotoBtn').style.display = 'block';
+  }
+
+  function goStep(n){
+    const cards = {1:'codeStepCard',2:'photoStepCard',3:'detailStepCard',4:'ownerStepCard'};
+    Object.values(cards).forEach(id=> document.getElementById(id).style.display='none');
+    document.getElementById('doneStepCard').style.display='none';
+    document.getElementById(cards[n]).style.display='block';
+    for(let i=1;i<=4;i++){
+      const pill = document.getElementById('stepPill'+i);
+      pill.classList.remove('current','done');
+      if(i<n) pill.classList.add('done');
+      if(i===n) pill.classList.add('current');
+    }
+  }
+
+  /* ===================================================================
+     STEP 2 — ถ่ายรูป + บีบอัดก่อนอัปโหลด (คำตอบคำถามเรื่อง storage)
+     ย่อรูปให้กว้างไม่เกิน 800px แล้ว compress เป็น JPEG quality 75%
+     ไฟล์ต้นฉบับจากมือถือ ~3-8MB → เหลือ ~50-150KB ต่อรูป
+     ทำให้ 1GB ฟรีของ Supabase Storage เก็บได้หลักพันถึงหมื่นรูป แทนที่จะเก็บได้แค่หลักร้อยรูป
+  =================================================================== */
+  function compressImage(file, maxWidth = 800, quality = 0.75){
+    return new Promise((resolve, reject) => {
+      const img = new Image();
+      const reader = new FileReader();
+
+      reader.onload = (e) => { img.src = e.target.result; };
+      reader.onerror = reject;
+      reader.readAsDataURL(file);
+
+      img.onload = () => {
+        const scale = Math.min(1, maxWidth / img.width); // ไม่ขยายรูปที่เล็กอยู่แล้ว
+        const canvas = document.createElement('canvas');
+        canvas.width = img.width * scale;
+        canvas.height = img.height * scale;
+
+        const ctx = canvas.getContext('2d');
+        ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+
+        canvas.toBlob(
+          (blob) => resolve(blob),
+          'image/jpeg',
+          quality
+        );
+      };
+      img.onerror = reject;
+    });
+  }
+
+  document.getElementById('photoInput').addEventListener('change', async (e) => {
+    const file = e.target.files[0];
+    if(!file) return;
+
+    const dropBox = document.getElementById('photoDrop');
+    dropBox.innerHTML = '<span class="pe">⏳</span>กำลังบีบอัดรูป...';
+
+    compressedPhotoBlob = await compressImage(file);
+
+    const previewUrl = URL.createObjectURL(compressedPhotoBlob);
+    dropBox.innerHTML = `<img src="${previewUrl}" style="width:100%;height:100%;object-fit:cover;border-radius:16px">`;
+
+    console.log('ขนาดไฟล์เดิม:', (file.size/1024).toFixed(0), 'KB → หลังบีบอัด:', (compressedPhotoBlob.size/1024).toFixed(0), 'KB');
+  });
+
+  async function uploadPhoto(blob, itemCode){
+    const fileName = `${itemCode}.jpg`;
+    const { error } = await supabase.storage
+      .from('product-photos')
+      .upload(fileName, blob, { upsert: true, contentType: 'image/jpeg' });
+
+    if(error){ alert('อัปโหลดรูปไม่สำเร็จ: ' + error.message); return null; }
+
+    const { data } = supabase.storage.from('product-photos').getPublicUrl(fileName);
+    return data.publicUrl;
+  }
+
+  /* ===================================================================
+     STEP 4 — เจ้าของ + ราคา + บันทึกสินค้าเข้าระบบจริง
+  =================================================================== */
+  async function loadOwners(){
+    const { data, error } = await supabase.from('owners').select('*').order('name');
+    if(error){ console.error(error); return; }
+    ownersCache = data;
+    if(ownersCache.length && !selectedOwnerId) selectedOwnerId = ownersCache[0].id;
+    renderOwnerPicker();
+  }
+
+  function renderOwnerPicker(){
+    const wrap = document.getElementById('ownerPicker');
+    wrap.innerHTML = ownersCache.map(o => `
+      <div class="owner-wrap">
+        <div class="owner-avatar${o.id===selectedOwnerId?' selected':''}" style="background:${o.avatar_color}" data-owner-id="${o.id}">${o.name.charAt(0)}</div>
+        <span class="nm">${o.name}</span>
+      </div>
+    `).join('');
+
+    wrap.querySelectorAll('.owner-avatar').forEach(av=>{
+      av.addEventListener('click',()=>{
+        wrap.querySelectorAll('.owner-avatar').forEach(b=>b.classList.remove('selected'));
+        av.classList.add('selected');
+        selectedOwnerId = av.getAttribute('data-owner-id');
+      });
+    });
+  }
+
+  async function saveProduct(){
+    if(!currentItemCode){ alert('ยังไม่ได้สร้างรหัสสินค้า (กลับไปขั้นตอนที่ 1)'); return; }
+    if(!selectedOwnerId){ alert('เลือกเจ้าของสินค้าก่อน'); return; }
+
+    const listPrice = parseFloat(document.getElementById('listPriceInput').value);
+    if(!listPrice){ alert('กรอกราคาตั้งขาย'); return; }
+
+    const btn = document.getElementById('saveProductBtn');
+    btn.disabled = true; btn.textContent = 'กำลังบันทึก...';
+
+    let photoUrl = null;
+    if(compressedPhotoBlob){
+      photoUrl = await uploadPhoto(compressedPhotoBlob, currentItemCode);
+    }
+
+    const category = document.getElementById('categorySelect').value;
+    const size = document.getElementById('sizeSelect').value;
+
+    const { error } = await supabase.from('products').insert({
+      item_code: currentItemCode,
+      name: `${category} ไซส์ ${size}`,
+      category, size,
+      grade: selectedGrade,
+      owner_id: selectedOwnerId,
+      list_price: listPrice,
+      photo_url: photoUrl,
+      status: 'available'
+    });
+
+    btn.disabled = false; btn.textContent = '✅ บันทึกสินค้าเข้าระบบ';
+
+    if(error){ alert('บันทึกไม่สำเร็จ: ' + error.message); return; }
+    finishAdd();
+  }
+
+  function finishAdd(){
+    ['codeStepCard','photoStepCard','detailStepCard','ownerStepCard'].forEach(id=> document.getElementById(id).style.display='none');
+    document.getElementById('doneStepCard').style.display='block';
+    for(let i=1;i<=4;i++) document.getElementById('stepPill'+i).classList.replace('current','done');
+  }
+
+  function resetAdd(){
+    currentItemCode = null;
+    compressedPhotoBlob = null;
+    selectedGrade = 'A';
+    document.querySelectorAll('.grade-btn').forEach(b=>b.classList.remove('selected'));
+    document.querySelector('.grade-btn[data-grade="A"]').classList.add('selected');
+    document.getElementById('codeDisplay').textContent = '— — — —';
+    document.getElementById('qrWrap').style.display = 'none';
+    document.getElementById('genCodeBtn').style.display = 'block';
+    document.getElementById('printBtn').style.display = 'none';
+    document.getElementById('printBtn').textContent = '🖨️ สั่งพิมพ์ป้าย QR';
+    document.getElementById('printBtn').style.background = 'var(--gold)';
+    document.getElementById('printBtn').style.boxShadow = '0 5px 0 #9c7827';
+    document.getElementById('nextToPhotoBtn').style.display = 'none';
+    document.getElementById('photoDrop').innerHTML = '<span class="pe">📷</span>แตะเพื่อถ่ายรูปสินค้า';
+    document.getElementById('listPriceInput').value = '';
+    goStep(1);
+  }
+
+  /* ===================================================================
+     หน้าขายสินค้า
+  =================================================================== */
+  async function renderProductGrid(searchTerm){
+    searchTerm = searchTerm !== undefined ? searchTerm : (document.getElementById('searchInput').value || '');
+
+    const { data, error } = await supabase
+      .from('products')
+      .select('*, owners(name, avatar_color)')
+      .eq('status', 'available')
+      .order('created_at', { ascending: false });
+
+    if(error){ console.error(error); return; }
+    productsCache = data;
+
+    const term = searchTerm.trim().toLowerCase();
+    const filtered = term
+      ? productsCache.filter(p => p.name.toLowerCase().includes(term) || p.item_code.includes(term))
+      : productsCache;
+
+    const grid = document.getElementById('productGrid');
+    if(filtered.length === 0){
+      grid.innerHTML = '<div style="grid-column:1/-1;text-align:center;color:var(--ink-soft);padding:30px;">ไม่พบสินค้า</div>';
+      return;
+    }
+
+    grid.innerHTML = filtered.map(p => `
+      <div class="product-card" data-product-id="${p.id}">
+        <div class="product-photo">${p.photo_url ? `<img src="${p.photo_url}" style="width:100%;height:100%;object-fit:cover">` : '👕'}</div>
+        <div class="product-info">
+          <div class="pname">${p.name} · #${p.item_code}</div>
+          <div class="owner-chip"><span class="owner-dot" style="background:${p.owners?.avatar_color || '#999'}"></span>${p.owners?.name || 'ไม่ทราบเจ้าของ'}</div>
+        </div>
+      </div>
+    `).join('');
+
+    grid.querySelectorAll('.product-card').forEach(card=>{
+      card.addEventListener('click',()=>{
+        grid.querySelectorAll('.product-card').forEach(c=>c.classList.remove('selected'));
+        card.classList.add('selected');
+        selectProduct(card.getAttribute('data-product-id'));
+      });
+    });
+  }
+
+  function selectProduct(productId){
+    const p = productsCache.find(x => x.id === productId);
+    if(!p) return;
+    selectedProduct = p;
+    document.getElementById('ticketName').textContent = `${p.name} #${p.item_code}`;
+    document.getElementById('ticketOwner').textContent = p.owners?.name || '—';
+    document.getElementById('ticketListPrice').textContent = `${p.list_price} ฿`;
+    document.getElementById('soldPriceInput').value = p.list_price;
+    updateTicketTotals();
+  }
+
+  function updateTicketTotals(){
+    const soldPrice = parseFloat(document.getElementById('soldPriceInput').value) || 0;
+    const shopCut = Math.round(soldPrice * SHOP_COMMISSION_RATE);
+    const ownerCut = soldPrice - shopCut;
+    document.getElementById('ticketShopCut').textContent = `${shopCut} ฿`;
+    document.getElementById('ticketOwnerCut').textContent = `${ownerCut} ฿`;
+  }
+
+  async function confirmSale(){
+    if(!selectedProduct){ alert('เลือกสินค้าก่อน'); return; }
+    const soldPrice = parseFloat(document.getElementById('soldPriceInput').value);
+    if(!soldPrice){ alert('กรอกราคาที่ขายได้'); return; }
+
+    const shopCut = Math.round(soldPrice * SHOP_COMMISSION_RATE);
+    const ownerCut = soldPrice - shopCut;
+
+    const btn = document.getElementById('confirmSaleBtn');
+    btn.disabled = true; btn.textContent = 'กำลังบันทึก...';
+
+    const { data: sale, error: saleErr } = await supabase.from('sales').insert({
+      product_id: selectedProduct.id,
+      sold_price: soldPrice,
+      payment_method: selectedPaymentMethod,
+      shop_commission: shopCut,
+      owner_payout: ownerCut
+    }).select().single();
+
+    if(saleErr){
+      alert('บันทึกการขายไม่สำเร็จ: ' + saleErr.message);
+      btn.disabled = false; btn.textContent = '✅ ยืนยันการขาย';
+      return;
+    }
+
+    await supabase.from('payouts').insert({
+      owner_id: selectedProduct.owner_id,
+      sale_id: sale.id,
+      amount: ownerCut,
+      is_paid: false
+    });
+
+    await supabase.from('products').update({ status: 'sold' }).eq('id', selectedProduct.id);
+
+    btn.disabled = false; btn.textContent = '✅ ยืนยันการขาย';
+    selectedProduct = null;
+    document.getElementById('ticketName').textContent = '— เลือกสินค้าก่อน —';
+    document.getElementById('ticketOwner').textContent = '—';
+    document.getElementById('ticketListPrice').textContent = '— ฿';
+    document.getElementById('soldPriceInput').value = 0;
+    updateTicketTotals();
+    renderProductGrid();
+
+    alert('บันทึกการขายเรียบร้อย!');
+  }
+
+  /* ===================================================================
+     สรุปยอดแต่ละเจ้าของ
+  =================================================================== */
+  async function loadOwnerSummary(){
+    const { data: owners } = await supabase.from('owners').select('*').order('name');
+    const list = document.getElementById('ownerList');
+    if(!owners) return;
+
+    const rows = await Promise.all(owners.map(async (owner) => {
+      const { count: soldCount } = await supabase.from('products').select('*', { count:'exact', head:true }).eq('owner_id', owner.id).eq('status','sold');
+      const { count: stockCount } = await supabase.from('products').select('*', { count:'exact', head:true }).eq('owner_id', owner.id).eq('status','available');
+      const { data: unpaid } = await supabase.from('payouts').select('*').eq('owner_id', owner.id).eq('is_paid', false);
+      const totalDue = (unpaid || []).reduce((sum,p)=> sum + Number(p.amount), 0);
+      const isPaidUp = totalDue === 0;
+
+      return `
+        <div class="owner-row">
+          <div class="o-avatar" style="background:${owner.avatar_color}">${owner.name.charAt(0)}</div>
+          <div style="flex:1">
+            <div class="o-name">${owner.name}</div>
+            <div class="o-meta">ขายแล้ว ${soldCount || 0} ชิ้น · เหลือในร้าน ${stockCount || 0} ชิ้น</div>
+          </div>
+          <div class="o-amount"><div class="num">${totalDue.toLocaleString()} ฿</div><div class="lbl">ยอดที่ต้องจ่าย</div></div>
+          <button class="pay-status-btn ${isPaidUp ? 'paid' : 'unpaid'}" data-owner-id="${owner.id}">${isPaidUp ? '✓ จ่ายแล้ว' : 'ยังไม่จ่าย'}</button>
+        </div>
+      `;
+    }));
+
+    list.innerHTML = rows.join('');
+
+    list.querySelectorAll('.pay-status-btn').forEach(btn=>{
+      btn.addEventListener('click', async ()=>{
+        const ownerId = btn.getAttribute('data-owner-id');
+        await supabase.from('payouts').update({ is_paid:true, paid_at:new Date().toISOString() }).eq('owner_id', ownerId).eq('is_paid', false);
+        loadOwnerSummary();
+      });
+    });
+  }
+
+  /* ===================================================================
+     แดชบอร์ด
+  =================================================================== */
+  async function loadDashboard(){
+    const startOfDay = new Date(); startOfDay.setHours(0,0,0,0);
+
+    const { data: todaySales } = await supabase.from('sales').select('*').gte('sold_at', startOfDay.toISOString());
+    const sales = todaySales || [];
+    const totalToday = sales.reduce((s,x)=> s + Number(x.sold_price), 0);
+    const cashToday = sales.filter(x=>x.payment_method==='cash').reduce((s,x)=>s+Number(x.sold_price),0);
+    const transferToday = sales.filter(x=>x.payment_method==='transfer').reduce((s,x)=>s+Number(x.sold_price),0);
+    const commissionToday = sales.reduce((s,x)=> s + Number(x.shop_commission), 0);
+
+    document.getElementById('dashTodayTotal').textContent = `${totalToday.toLocaleString()} ฿`;
+    document.getElementById('dashTodayCount').textContent = `ยอดขายวันนี้ (${sales.length} ชิ้น)`;
+    document.getElementById('dashCashTotal').textContent = `💵 เงินสด ${cashToday.toLocaleString()}`;
+    document.getElementById('dashTransferTotal').textContent = `🏦 โอน ${transferToday.toLocaleString()}`;
+    document.getElementById('dashCommission').textContent = `${commissionToday.toLocaleString()} ฿`;
+
+    const { count: stockCount } = await supabase.from('products').select('*', { count:'exact', head:true }).eq('status','available');
+    document.getElementById('dashStockCount').textContent = `${stockCount || 0} ชิ้น`;
+
+    const startOfMonth = new Date(); startOfMonth.setDate(1); startOfMonth.setHours(0,0,0,0);
+    const { data: monthSales } = await supabase
+      .from('sales').select('*, products(name)').gte('sold_at', startOfMonth.toISOString());
+
+    const tally = {};
+    (monthSales || []).forEach(s=>{
+      const name = s.products?.name || 'ไม่ทราบชื่อ';
+      tally[name] = (tally[name] || 0) + 1;
+    });
+    const top5 = Object.entries(tally).sort((a,b)=>b[1]-a[1]).slice(0,5);
+    document.getElementById('dashBestSellers').innerHTML = top5.length
+      ? top5.map(([name,n])=> `<div class="best-row"><div class="best-photo">👕</div><div class="best-name">${name}</div><div class="best-n">${n} ชิ้น</div></div>`).join('')
+      : '<div style="color:var(--ink-soft);font-size:14px;">ยังไม่มีข้อมูลการขายเดือนนี้</div>';
+
+    const ninetyDaysAgo = new Date(); ninetyDaysAgo.setDate(ninetyDaysAgo.getDate()-90);
+    const { data: staleProducts } = await supabase
+      .from('products').select('*').eq('status','available').lte('created_at', ninetyDaysAgo.toISOString());
+
+    const { data: unpaidPayouts } = await supabase
+      .from('payouts').select('*, owners(name)').eq('is_paid', false);
+
+    const unpaidByOwner = {};
+    (unpaidPayouts || []).forEach(p=>{
+      const name = p.owners?.name || 'ไม่ทราบชื่อ';
+      unpaidByOwner[name] = (unpaidByOwner[name] || 0) + Number(p.amount);
+    });
+
+    let alertsHtml = '';
+    (staleProducts || []).forEach(p=>{
+      alertsHtml += `<div class="alert-row"><span class="ae">🕒</span><span class="at">${p.name} (#${p.item_code}) ค้างสต๊อกนาน — ลองลดราคา?</span></div>`;
+    });
+    Object.entries(unpaidByOwner).forEach(([name,amount])=>{
+      alertsHtml += `<div class="alert-row"><span class="ae">💰</span><span class="at">${name} ยังไม่ได้รับเงิน ${amount.toLocaleString()} ฿</span></div>`;
+    });
+
+    document.getElementById('dashAlerts').innerHTML = alertsHtml || '<div style="color:var(--ink-soft);font-size:14px;">ไม่มีเรื่องด่วนตอนนี้ 🎉</div>';
+  }
+
+  /* ===================================================================
+     INIT
+  =================================================================== */
+  window.addEventListener('DOMContentLoaded', () => {
+    loadOwners();
+  });
+</script>
+</body>
+</html>
