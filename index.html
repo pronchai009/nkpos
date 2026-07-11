@@ -704,23 +704,30 @@ async function uploadItemPhoto(file, itemCode) {
 
   function pad4(n){ return String(n).padStart(4,'0'); }
 
-  function generateCode(){
-    currentCode = pad4(itemCounter);
-    document.getElementById('codeDisplay').textContent = currentCode.split('').join(' ');
-    document.querySelectorAll('.codeReminder').forEach(el=> el.textContent = currentCode);
+  let currentOwnerId = null; // จะตั้งค่าตอนเลือกเจ้าของสินค้าในขั้นตอนที่ 4 ของฟอร์ม
 
-    // render real QR code so it's clear this is a genuine, scannable code
-    const qrEl = document.getElementById('qrcode');
-    qrEl.innerHTML = '';
-    if (window.QRCode){
-      new QRCode(qrEl, { text: 'ITEM-' + currentCode, width:150, height:150, colorDark:'#1B413C', colorLight:'#ffffff' });
-    } else {
-      qrEl.textContent = 'ITEM-' + currentCode;
-    }
-    document.getElementById('qrWrap').style.display = 'flex';
-    document.getElementById('genCodeBtn').style.display = 'none';
-    document.getElementById('printBtn').style.display = 'block';
+async function generateCode(){
+  const { data, error } = await sb.rpc('get_next_item_code');
+  if (error) {
+    console.error('ออกรหัสไม่สำเร็จ:', error.message);
+    alert('เกิดข้อผิดพลาด ลองใหม่อีกครั้ง');
+    return;
   }
+  currentCode = data;
+  document.getElementById('codeDisplay').textContent = currentCode.split('').join(' ');
+  document.querySelectorAll('.codeReminder').forEach(el=> el.textContent = currentCode);
+
+  const qrEl = document.getElementById('qrcode');
+  qrEl.innerHTML = '';
+  if (window.QRCode){
+    new QRCode(qrEl, { text: 'ITEM-' + currentCode, width:150, height:150, colorDark:'#1B413C', colorLight:'#ffffff' });
+  } else {
+    qrEl.textContent = 'ITEM-' + currentCode;
+  }
+  document.getElementById('qrWrap').style.display = 'flex';
+  document.getElementById('genCodeBtn').style.display = 'none';
+  document.getElementById('printBtn').style.display = 'block';
+}
 
   function doPrint(){
     document.getElementById('printBtn').textContent = '✓ พิมพ์ป้ายแล้ว';
@@ -748,18 +755,6 @@ async function uploadItemPhoto(file, itemCode) {
     for(let i=1;i<=4;i++) document.getElementById('stepPill'+i).classList.replace('current','done');
   }
 
-  function resetAdd(){
-    itemCounter++; // ตัวถัดไปวิ่งต่อจากเดิม ไม่มีวันย้อนกลับมาซ้ำ
-    document.getElementById('codeDisplay').textContent = '— — — —';
-    document.getElementById('qrWrap').style.display = 'none';
-    document.getElementById('genCodeBtn').style.display = 'block';
-    document.getElementById('printBtn').style.display = 'none';
-    document.getElementById('printBtn').textContent = '🖨️ สั่งพิมพ์ป้าย QR';
-    document.getElementById('printBtn').style.background = 'var(--gold)';
-    document.getElementById('printBtn').style.boxShadow = '0 5px 0 #9c7827';
-    document.getElementById('nextToPhotoBtn').style.display = 'none';
-    goStep(1);
-  }
 </script>
 </body>
 </html>
