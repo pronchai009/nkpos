@@ -426,10 +426,11 @@
         <span style="font-size:22px;">🏷️</span>
         <span style="font-weight:700;color:var(--teal-dark);">รหัสสินค้าตัวนี้คือ <span id="codeReminder" style="font-size:18px;">0000</span></span>
       </div>
-      <div class="photo-drop">
-        <span class="pe">📷</span>
-        แตะเพื่อถ่ายรูปสินค้า
-      </div>
+      <div class="photo-drop" onclick="document.getElementById('photoInput').click()" id="photoDropZone">
+  <span class="pe">📷</span>
+  แตะเพื่อถ่ายรูปสินค้า
+</div>
+<input type="file" id="photoInput" accept="image/*" capture="environment" style="display:none">
       <button class="confirm-btn" onclick="goStep(3)">➜ ต่อไป: กรอกรายละเอียด</button>
     </div>
 
@@ -475,11 +476,11 @@
       </div>
       <div class="field-label">เจ้าของสินค้า (แตะเลือก)</div>
       <div class="owner-picker">
-        <div class="owner-wrap"><div class="owner-avatar selected" style="background:#C99A3E">น</div><span class="nm">คุณแม่นิด</span></div>
-        <div class="owner-wrap"><div class="owner-avatar" style="background:#5F8B6A">จ</div><span class="nm">ป้าจิ๋ว</span></div>
-        <div class="owner-wrap"><div class="owner-avatar" style="background:#C1553B">อ</div><span class="nm">น้องเอ</span></div>
-        <div class="owner-wrap"><div class="owner-avatar" style="background:#285C55">ส</div><span class="nm">ลุงสมชาย</span></div>
-        <div class="owner-wrap"><div class="owner-avatar" style="background:#7A6FA6">น</div><span class="nm">ป้าน้อย</span></div>
+        <div class="owner-wrap"><div class="owner-avatar selected" data-owner-id="7c92a1e7-cbd6-4079-91d6-148626d7b99d" style="background:#C99A3E">น</div><span class="nm">คุณแม่นิด</span></div>
+        <div class="owner-wrap"><div class="owner-avatar" selected" data-owner-id="4117b2f7-a456-46b6-b383-5c451cbd1f02" style="background:#5F8B6A">จ</div><span class="nm">ป้าจิ๋ว</span></div>
+        <div class="owner-wrap"><div class="owner-avatar" selected" data-owner-id="a2674176-7dc1-4609-a41c-a736d8d0eb00" style="background:#C1553B">อ</div><span class="nm">น้องเอ</span></div>
+        <div class="owner-wrap"><div class="owner-avatar" selected" data-owner-id="72a59c6f-afe6-4b5b-8a80-213b1aa25a4e" style="background:#285C55">ส</div><span class="nm">ลุงสมชาย</span></div>
+        <div class="owner-wrap"><div class="owner-avatar" selected" data-owner-id="9d293b02-d516-4042-a5c7-9434e7cd53d1" style="background:#7A6FA6">น</div><span class="nm">ป้าน้อย</span></div>
       </div>
 
       <div class="grid-2">
@@ -749,12 +750,54 @@ async function generateCode(){
     }
   }
 
-  function finishAdd(){
-    ['codeStepCard','photoStepCard','detailStepCard','ownerStepCard'].forEach(id=> document.getElementById(id).style.display='none');
-    document.getElementById('doneStepCard').style.display='block';
-    for(let i=1;i<=4;i++) document.getElementById('stepPill'+i).classList.replace('current','done');
+let selectedPhotoFile = null;
+
+document.getElementById('photoInput').addEventListener('change', (e) => {
+  selectedPhotoFile = e.target.files[0];
+  if (selectedPhotoFile) {
+    document.getElementById('photoDropZone').innerHTML = '<span class="pe">✅</span>เลือกรูปแล้ว แตะเพื่อเปลี่ยน';
+  }
+});
+
+async function finishAdd(){
+  const productType = document.querySelectorAll('#detailStepCard select')[0].value;
+  const size = document.querySelectorAll('#detailStepCard select')[1].value;
+  const gradeBtn = document.querySelector('#detailStepCard .grade-btn.selected');
+  const grade = gradeBtn ? gradeBtn.textContent.trim().charAt(0) : 'A';
+  const priceInput = document.querySelector('#ownerStepCard input.input-box');
+  const price = parseFloat(priceInput.value);
+  const ownerAvatar = document.querySelector('#ownerStepCard .owner-avatar.selected');
+  const ownerId = ownerAvatar ? ownerAvatar.getAttribute('data-owner-id') : null;
+
+  if (!price || !ownerId) {
+    alert('กรุณากรอกราคา และเลือกเจ้าของสินค้าให้ครบ');
+    return;
   }
 
+  let photoUrl = null;
+  if (selectedPhotoFile) {
+    photoUrl = await uploadItemPhoto(selectedPhotoFile, currentCode);
+  }
+
+  const { error } = await sb.from('items').insert({
+    item_code: currentCode,
+    owner_id: ownerId,
+    name: `${productType} ไซส์ ${size} เกรด ${grade}`,
+    price: price,
+    photo_url: photoUrl,
+    status: 'available'
+  });
+
+  if (error) {
+    console.error('บันทึกสินค้าไม่สำเร็จ:', error.message);
+    alert('เกิดข้อผิดพลาด: ' + error.message);
+    return;
+  }
+
+  ['codeStepCard','photoStepCard','detailStepCard','ownerStepCard'].forEach(id=> document.getElementById(id).style.display='none');
+  document.getElementById('doneStepCard').style.display='block';
+  for(let i=1;i<=4;i++) document.getElementById('stepPill'+i).classList.replace('current','done');
+}
 </script>
 </body>
 </html>
