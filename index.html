@@ -599,11 +599,11 @@
   // ===== เชื่อมต่อ Supabase =====
 const SUPABASE_URL = 'https://dvfozfibbblauwgoucuo.supabase.co';
 const SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImR2Zm96ZmliYmJsYXV3Z291Y3VvIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODM3NTkxMTcsImV4cCI6MjA5OTMzNTExN30.kazxU-qIdw6RsrrJczFOU7uTR9naTLCNgmy9ZkdpFUA';
-const supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
+const sb = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
 
 // ทดสอบว่าเชื่อมต่อสำเร็จไหม (เช็คผ่าน console ของเบราว์เซอร์)
 async function testConnection(){
-  const { data, error } = await supabase.from('owners').select('*');
+  const { data, error } = await sb.from('owners').select('*');
   if (error) console.error('เชื่อมต่อไม่สำเร็จ:', error.message);
   else console.log('เชื่อมต่อสำเร็จ! เจ้าของสินค้าในระบบตอนนี้:', data);
 }
