@@ -466,52 +466,8 @@
   <!-- OWNER SUMMARY -->
   <div class="screen" id="owners">
     <div class="section-title">🧾 สรุปยอดแต่ละเจ้าของ</div>
-    <div class="owner-list">
-      <div class="owner-row">
-        <div class="o-avatar" style="background:#C99A3E">น</div>
-        <div style="flex:1">
-          <div class="o-name">คุณแม่นิด</div>
-          <div class="o-meta">ขายแล้ว 8 ชิ้น · เหลือในร้าน 14 ชิ้น</div>
-        </div>
-        <div class="o-amount"><div class="num">1,640 ฿</div><div class="lbl">ยอดที่ต้องจ่าย</div></div>
-        <button class="pay-status-btn unpaid">ยังไม่จ่าย</button>
-      </div>
-      <div class="owner-row">
-        <div class="o-avatar" style="background:#5F8B6A">จ</div>
-        <div style="flex:1">
-          <div class="o-name">ป้าจิ๋ว</div>
-          <div class="o-meta">ขายแล้ว 5 ชิ้น · เหลือในร้าน 22 ชิ้น</div>
-        </div>
-        <div class="o-amount"><div class="num">980 ฿</div><div class="lbl">ยอดที่ต้องจ่าย</div></div>
-        <button class="pay-status-btn paid">✓ จ่ายแล้ว</button>
-      </div>
-      <div class="owner-row">
-        <div class="o-avatar" style="background:#C1553B">อ</div>
-        <div style="flex:1">
-          <div class="o-name">น้องเอ</div>
-          <div class="o-meta">ขายแล้ว 3 ชิ้น · เหลือในร้าน 9 ชิ้น</div>
-        </div>
-        <div class="o-amount"><div class="num">540 ฿</div><div class="lbl">ยอดที่ต้องจ่าย</div></div>
-        <button class="pay-status-btn unpaid">ยังไม่จ่าย</button>
-      </div>
-      <div class="owner-row">
-        <div class="o-avatar" style="background:#285C55">ส</div>
-        <div style="flex:1">
-          <div class="o-name">ลุงสมชาย</div>
-          <div class="o-meta">ขายแล้ว 6 ชิ้น · เหลือในร้าน 17 ชิ้น</div>
-        </div>
-        <div class="o-amount"><div class="num">1,120 ฿</div><div class="lbl">ยอดที่ต้องจ่าย</div></div>
-        <button class="pay-status-btn unpaid">ยังไม่จ่าย</button>
-      </div>
-      <div class="owner-row">
-        <div class="o-avatar" style="background:#7A6FA6">น</div>
-        <div style="flex:1">
-          <div class="o-name">ป้าน้อย</div>
-          <div class="o-meta">ขายแล้ว 2 ชิ้น · เหลือในร้าน 11 ชิ้น</div>
-        </div>
-        <div class="o-amount"><div class="num">360 ฿</div><div class="lbl">ยอดที่ต้องจ่าย</div></div>
-        <button class="pay-status-btn paid">✓ จ่ายแล้ว</button>
-      </div>
+    <div class="owner-list" id="ownerList">
+      <div style="text-align:center;padding:30px;color:var(--ink-soft);">กำลังโหลดข้อมูล...</div>
     </div>
   </div>
 
@@ -691,15 +647,55 @@ async function confirmSale(){
     });
   });
   loadProducts();
-  document.querySelectorAll('.pay-status-btn').forEach(btn=>{
-    btn.addEventListener('click',()=>{
-      const paid = btn.classList.contains('unpaid');
-      btn.classList.toggle('unpaid');
-      btn.classList.toggle('paid');
-      btn.textContent = paid ? '✓ จ่ายแล้ว' : 'ยังไม่จ่าย';
-    });
+  loadOwnerSummary();
+
+async function loadOwnerSummary(){
+  const list = document.getElementById('ownerList');
+  const { data: owners, error: ownerErr } = await sb.from('owners').select('*');
+  const { data: items, error: itemErr } = await sb.from('items').select('*');
+  const { data: sales, error: saleErr } = await sb.from('sales').select('*, items(owner_id)');
+
+  if (ownerErr || itemErr || saleErr){
+    list.innerHTML = '<div style="color:red;">โหลดข้อมูลไม่สำเร็จ</div>';
+    return;
+  }
+
+  list.innerHTML = '';
+  owners.forEach(owner => {
+    const ownerItems = items.filter(i => i.owner_id === owner.id);
+    const remaining = ownerItems.filter(i => i.status === 'available').length;
+    const ownerSales = sales.filter(s => s.items && s.items.owner_id === owner.id);
+    const soldCount = ownerSales.length;
+    const unpaidSales = ownerSales.filter(s => !s.paid);
+    const owed = unpaidSales.reduce((sum, s) => sum + Math.round(s.sold_price * 0.8), 0);
+    const isPaid = unpaidSales.length === 0 && soldCount > 0;
+
+    const row = document.createElement('div');
+    row.className = 'owner-row';
+    row.innerHTML = `
+      <div class="o-avatar" style="background:#C99A3E">${owner.name.charAt(0)}</div>
+      <div style="flex:1">
+        <div class="o-name">${owner.name}</div>
+        <div class="o-meta">ขายแล้ว ${soldCount} ชิ้น · เหลือในร้าน ${remaining} ชิ้น</div>
+      </div>
+      <div class="o-amount"><div class="num">${owed.toLocaleString()} ฿</div><div class="lbl">ยอดที่ต้องจ่าย</div></div>
+      <button class="pay-status-btn ${isPaid ? 'paid' : 'unpaid'}" data-owner-id="${owner.id}">
+        ${isPaid ? '✓ จ่ายแล้ว' : 'ยังไม่จ่าย'}
+      </button>`;
+    list.appendChild(row);
   });
 
+  // ผูกปุ่ม "ยังไม่จ่าย/จ่ายแล้ว" ให้ทำงานกับฐานข้อมูลจริง
+  document.querySelectorAll('#ownerList .pay-status-btn').forEach(btn => {
+    btn.addEventListener('click', async () => {
+      const ownerId = btn.getAttribute('data-owner-id');
+      const { data: ownerItems } = await sb.from('items').select('id').eq('owner_id', ownerId);
+      const itemIds = ownerItems.map(i => i.id);
+      await sb.from('sales').update({ paid: true }).in('item_id', itemIds).eq('paid', false);
+      loadOwnerSummary();
+    });
+  });
+}
   // ===== บีบอัดรูปก่อนอัปโหลด =====
 function compressImage(file, maxWidth = 800, quality = 0.7) {
   return new Promise((resolve) => {
