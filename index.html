@@ -320,71 +320,29 @@
           <input type="text" placeholder="พิมพ์ชื่อสินค้า หรือแตะสแกนบาร์โค้ด...">
           <button class="scan-btn">📷</button>
         </div>
-        <div class="product-grid">
-          <div class="product-card selected">
-            <div class="product-photo">👕</div>
-            <div class="product-info">
-              <div class="pname">เสื้อยืดลายทาง ไซส์ M</div>
-              <div class="owner-chip"><span class="owner-dot" style="background:#C99A3E"></span>คุณแม่นิด</div>
-            </div>
-          </div>
-          <div class="product-card">
-            <div class="product-photo">👖</div>
-            <div class="product-info">
-              <div class="pname">กางเกงยีนส์ เอว 30</div>
-              <div class="owner-chip"><span class="owner-dot" style="background:#5F8B6A"></span>ป้าจิ๋ว</div>
-            </div>
-          </div>
-          <div class="product-card">
-            <div class="product-photo">🧥</div>
-            <div class="product-info">
-              <div class="pname">แจ็คเก็ตยีนส์ ไซส์ L</div>
-              <div class="owner-chip"><span class="owner-dot" style="background:#C1553B"></span>น้องเอ</div>
-            </div>
-          </div>
-          <div class="product-card">
-            <div class="product-photo">👗</div>
-            <div class="product-info">
-              <div class="pname">เดรสลายดอก ไซส์ S</div>
-              <div class="owner-chip"><span class="owner-dot" style="background:#285C55"></span>ลุงสมชาย</div>
-            </div>
-          </div>
-          <div class="product-card">
-            <div class="product-photo">🧣</div>
-            <div class="product-info">
-              <div class="pname">ผ้าพันคอไหมพรม</div>
-              <div class="owner-chip"><span class="owner-dot" style="background:#C99A3E"></span>คุณแม่นิด</div>
-            </div>
-          </div>
-          <div class="product-card">
-            <div class="product-photo">👚</div>
-            <div class="product-info">
-              <div class="pname">เสื้อเชิ้ตขาว ไซส์ M</div>
-              <div class="owner-chip"><span class="owner-dot" style="background:#7A6FA6"></span>ป้าน้อย</div>
-            </div>
-          </div>
+        <div class="product-grid" id="productGrid">
+          <div style="grid-column:1/-1;text-align:center;padding:30px;color:var(--ink-soft);">กำลังโหลดสินค้า...</div>
         </div>
       </div>
-
       <div class="ticket-panel">
         <div class="ticket-title">🏷️ สรุปการขาย</div>
-        <div class="ticket-row"><span>สินค้า</span><span>เสื้อยืดลายทาง M</span></div>
-        <div class="ticket-row"><span>เจ้าของ</span><span>คุณแม่นิด</span></div>
-        <div class="ticket-row"><span>ตั้งราคาไว้</span><span>250 ฿</span></div>
+        <div class="ticket-row"><span>สินค้า</span><span id="ticketName">ยังไม่ได้เลือก</span></div>
+        <div class="ticket-row"><span>เจ้าของ</span><span id="ticketOwner">-</span></div>
+        <div class="ticket-row"><span>ตั้งราคาไว้</span><span id="ticketListedPrice">-</span></div>
 
         <div class="field-label" style="margin-top:14px;">ราคาที่ขายได้จริง</div>
-        <input class="price-input" value="250 ฿">
+        <input class="price-input" id="soldPriceInput" value="0">
 
         <div class="field-label">วิธีจ่ายเงิน</div>
         <div class="pay-options">
-          <div class="pay-btn selected cash"><span class="pe">💵</span>เงินสด</div>
-          <div class="pay-btn"><span class="pe">🏦</span>โอนเงิน</div>
-        </div>
+        <div class="pay-btn selected cash"><span class="pe">💵</span>เงินสด</div>
+        <div class="pay-btn"><span class="pe">🏦</span>โอนเงิน</div>
+         </div>
 
-        <div class="ticket-row total"><span>ร้านได้ (20%)</span><span>50 ฿</span></div>
-        <div class="ticket-row total"><span>เจ้าของได้</span><span>200 ฿</span></div>
+        <div class="ticket-row total"><span>ร้านได้ (20%)</span><span id="shopCut">0 ฿</span></div>
+        <div class="ticket-row total"><span>เจ้าของได้</span><span id="ownerCut">0 ฿</span></div>
 
-        <button class="confirm-btn" style="margin-top:16px;">✅ ยืนยันการขาย</button>
+        <button class="confirm-btn" style="margin-top:16px;" onclick="confirmSale()">✅ ยืนยันการขาย</button>
       </div>
     </div>
   </div>
@@ -609,6 +567,96 @@ async function testConnection(){
   else console.log('เชื่อมต่อสำเร็จ! เจ้าของสินค้าในระบบตอนนี้:', data);
 }
 testConnection();
+  
+// ===== หน้าขายสินค้า =====
+let selectedItem = null;
+
+async function loadProducts(){
+  const grid = document.getElementById('productGrid');
+  const { data, error } = await sb
+    .from('items')
+    .select('*, owners(name)')
+    .eq('status', 'available')
+    .order('created_at', { ascending: false });
+
+  if (error) {
+    grid.innerHTML = '<div style="grid-column:1/-1;color:red;">โหลดสินค้าไม่สำเร็จ: ' + error.message + '</div>';
+    return;
+  }
+  if (!data.length) {
+    grid.innerHTML = '<div style="grid-column:1/-1;color:var(--ink-soft);">ยังไม่มีสินค้าในร้าน</div>';
+    return;
+  }
+
+  grid.innerHTML = '';
+  data.forEach(item => {
+    const card = document.createElement('div');
+    card.className = 'product-card';
+    card.onclick = () => selectProduct(item, card);
+    card.innerHTML = `
+      <div class="product-photo">${item.photo_url ? `<img src="${item.photo_url}" style="width:100%;height:100%;object-fit:cover;">` : '👕'}</div>
+      <div class="product-info">
+        <div class="pname">${item.name} (${item.item_code})</div>
+        <div class="owner-chip"><span class="owner-dot" style="background:#C99A3E"></span>${item.owners ? item.owners.name : '-'}</div>
+      </div>`;
+    grid.appendChild(card);
+  });
+}
+
+function selectProduct(item, cardEl){
+  selectedItem = item;
+  document.querySelectorAll('.product-card').forEach(c => c.classList.remove('selected'));
+  cardEl.classList.add('selected');
+
+  document.getElementById('ticketName').textContent = `${item.name} (${item.item_code})`;
+  document.getElementById('ticketOwner').textContent = item.owners ? item.owners.name : '-';
+  document.getElementById('ticketListedPrice').textContent = item.price + ' ฿';
+  document.getElementById('soldPriceInput').value = item.price;
+  updateSplit();
+}
+
+function updateSplit(){
+  const price = parseFloat(document.getElementById('soldPriceInput').value) || 0;
+  const shopCut = Math.round(price * 0.2);
+  document.getElementById('shopCut').textContent = shopCut + ' ฿';
+  document.getElementById('ownerCut').textContent = (price - shopCut) + ' ฿';
+}
+document.getElementById('soldPriceInput').addEventListener('input', updateSplit);
+
+async function confirmSale(){
+  if (!selectedItem){
+    alert('กรุณาเลือกสินค้าก่อน');
+    return;
+  }
+  const soldPrice = parseFloat(document.getElementById('soldPriceInput').value);
+  const payBtn = document.querySelector('.pay-btn.selected');
+  const paymentMethod = payBtn && payBtn.classList.contains('transfer') ? 'transfer' : 'cash';
+
+  const { error: saleError } = await sb.from('sales').insert({
+    item_id: selectedItem.id,
+    sold_price: soldPrice,
+    payment_method: paymentMethod
+  });
+  if (saleError){
+    alert('บันทึกการขายไม่สำเร็จ: ' + saleError.message);
+    return;
+  }
+
+  const { error: updateError } = await sb.from('items')
+    .update({ status: 'sold' })
+    .eq('id', selectedItem.id);
+  if (updateError){
+    alert('อัปเดตสถานะสินค้าไม่สำเร็จ: ' + updateError.message);
+    return;
+  }
+
+  alert('บันทึกการขายเรียบร้อย!');
+  selectedItem = null;
+  document.getElementById('ticketName').textContent = 'ยังไม่ได้เลือก';
+  document.getElementById('ticketOwner').textContent = '-';
+  document.getElementById('ticketListedPrice').textContent = '-';
+  loadProducts();
+}
   function go(name){
     document.querySelectorAll('.screen').forEach(s=>s.classList.remove('active'));
     document.querySelectorAll('.tab').forEach(t=>t.classList.remove('active'));
@@ -642,6 +690,7 @@ testConnection();
       card.classList.add('selected');
     });
   });
+  loadProducts();
   document.querySelectorAll('.pay-status-btn').forEach(btn=>{
     btn.addEventListener('click',()=>{
       const paid = btn.classList.contains('unpaid');
