@@ -679,20 +679,41 @@ async function loadOwnerSummary(){
         <div class="o-meta">ขายแล้ว ${soldCount} ชิ้น · เหลือในร้าน ${remaining} ชิ้น</div>
       </div>
       <div class="o-amount"><div class="num">${owed.toLocaleString()} ฿</div><div class="lbl">ยอดที่ต้องจ่าย</div></div>
-      <button class="pay-status-btn ${isPaid ? 'paid' : 'unpaid'}" data-owner-id="${owner.id}">
-        ${isPaid ? '✓ จ่ายแล้ว' : 'ยังไม่จ่าย'}
+      <button class="pay-status-btn ${isPaid ? 'paid' : 'unpaid'}" data-owner-id="${owner.id}" data-owner-name="${owner.name}" data-owed="${owed.toLocaleString()}">
+      ${isPaid ? '✓ จ่ายแล้ว' : 'X ยังไม่จ่าย'}
       </button>`;
     list.appendChild(row);
   });
 
-  // ผูกปุ่ม "ยังไม่จ่าย/จ่ายแล้ว" ให้ทำงานกับฐานข้อมูลจริง
+  // ผูกปุ่ม "ยังไม่จ่าย/จ่ายแล้ว" ให้ทำงานกับฐานข้อมูลจริง พร้อมยืนยันก่อนกด + กดย้อนกลับได้
   document.querySelectorAll('#ownerList .pay-status-btn').forEach(btn => {
     btn.addEventListener('click', async () => {
       const ownerId = btn.getAttribute('data-owner-id');
+      const ownerName = btn.getAttribute('data-owner-name');
+      const isCurrentlyPaid = btn.classList.contains('paid');
+      const owedAmount = btn.getAttribute('data-owed');
+
+      let confirmMsg;
+      if (!isCurrentlyPaid) {
+        confirmMsg = `ยืนยันจ่ายเงินให้ "${ownerName}" จำนวน ${owedAmount} บาท ใช่หรือไม่?`;
+      } else {
+        confirmMsg = `"${ownerName}" ถูกบันทึกว่าจ่ายแล้ว\n\nต้องการย้อนกลับเป็น "ยังไม่จ่าย" ใช่หรือไม่? (ใช้ในกรณีกดพลาด)`;
+      }
+
+      if (!confirm(confirmMsg)) return; // กดยกเลิก ไม่ทำอะไรต่อ
+
+      btn.disabled = true; // ล็อกปุ่มกันกดซ้ำระหว่างกำลังบันทึก
+      btn.textContent = 'กำลังบันทึก...';
+
       const { data: ownerItems } = await sb.from('items').select('id').eq('owner_id', ownerId);
       const itemIds = ownerItems.map(i => i.id);
-      await sb.from('sales').update({ paid: true }).in('item_id', itemIds).eq('paid', false);
-      loadOwnerSummary();
+
+      if (!isCurrentlyPaid) {
+        await sb.from('sales').update({ paid: true }).in('item_id', itemIds).eq('paid', false);
+      } else {
+        await sb.from('sales').update({ paid: false }).in('item_id', itemIds).eq('paid', true);
+      }
+      loadOwnerSummary(); // โหลดใหม่ทั้งหมด ปุ่มเดิมจะถูกแทนที่ด้วยปุ่มใหม่ที่กดซ้ำไม่ได้จนกว่าจะโหลดเสร็จ
     });
   });
 }
