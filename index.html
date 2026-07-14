@@ -8,6 +8,7 @@
 <link href="https://fonts.googleapis.com/css2?family=Chonburi&family=Noto+Sans+Thai:wght@400;500;600;700;800&family=IBM+Plex+Sans+Thai:wght@400;500;600;700&display=swap" rel="stylesheet">
 <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
   <script src="https://unpkg.com/@supabase/supabase-js@2"></script>
+  <script src="https://unpkg.com/html5-qrcode@2.3.8/html5-qrcode.min.js"></script>
 
 <style>
   :root{
@@ -316,10 +317,10 @@
     <div class="section-title">💰 ขายสินค้า</div>
     <div class="sell-layout">
       <div>
-        <div class="search-bar">
-          <input type="text" placeholder="พิมพ์ชื่อสินค้า หรือแตะสแกนบาร์โค้ด...">
-          <button class="scan-btn">📷</button>
-        </div>
+       <div class="search-bar">
+        <input type="text" id="searchInput" placeholder="พิมพ์ชื่อสินค้า หรือแตะสแกนบาร์โค้ด...">
+        <button class="scan-btn" onclick="startScanner()">📷</button>
+      </div>
         <div class="product-grid" id="productGrid">
           <div style="grid-column:1/-1;text-align:center;padding:30px;color:var(--ink-soft);">กำลังโหลดสินค้า...</div>
         </div>
@@ -347,6 +348,14 @@
     </div>
   </div>
 
+  <div id="scannerModal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.85);z-index:999;align-items:center;justify-content:center;flex-direction:column;">
+  <div style="background:#fff;padding:20px;border-radius:16px;max-width:360px;width:90%;">
+    <div style="font-weight:800;margin-bottom:12px;color:var(--teal-dark);">📷 ส่อง QR บนป้ายสินค้า</div>
+    <div id="qrReader" style="width:100%;"></div>
+    <button class="confirm-btn" style="margin-top:14px;background:var(--coral);box-shadow:0 5px 0 #8B3A26;" onclick="stopScanner()">✕ ปิดกล้อง</button>
+  </div>
+</div>
+  
   <!-- ADD PRODUCT -->
   <div class="screen" id="add">
     <div class="section-title">📸 เพิ่มสินค้าใหม่</div>
@@ -433,13 +442,11 @@
         <span style="font-weight:700;color:var(--teal-dark);">รหัสสินค้าตัวนี้คือ <span class="codeReminder" style="font-size:18px;">0000</span></span>
       </div>
       <div class="field-label">เจ้าของสินค้า (แตะเลือก)</div>
-      <div class="owner-picker">
-        <div class="owner-wrap"><div class="owner-avatar selected" data-owner-id="7c92a1e7-cbd6-4079-91d6-148626d7b99d" style="background:#C99A3E">น</div><span class="nm">คุณแม่นิด</span></div>
-        <div class="owner-wrap"><div class="owner-avatar" selected" data-owner-id="4117b2f7-a456-46b6-b383-5c451cbd1f02" style="background:#5F8B6A">จ</div><span class="nm">ป้าจิ๋ว</span></div>
-        <div class="owner-wrap"><div class="owner-avatar" selected" data-owner-id="a2674176-7dc1-4609-a41c-a736d8d0eb00" style="background:#C1553B">อ</div><span class="nm">น้องเอ</span></div>
-        <div class="owner-wrap"><div class="owner-avatar" selected" data-owner-id="72a59c6f-afe6-4b5b-8a80-213b1aa25a4e" style="background:#285C55">ส</div><span class="nm">ลุงสมชาย</span></div>
-        <div class="owner-wrap"><div class="owner-avatar" selected" data-owner-id="9d293b02-d516-4042-a5c7-9434e7cd53d1" style="background:#7A6FA6">น</div><span class="nm">ป้าน้อย</span></div>
+
+      <div class="owner-picker" id="ownerPicker">
+        <div style="color:var(--ink-soft);">กำลังโหลด...</div>
       </div>
+    <button type="button" style="background:none;border:none;color:var(--teal-dark);font-weight:700;cursor:pointer;margin:-8px 0 18px;text-decoration:underline;padding:0;font-size:14px;" onclick="addOwner()">➕ เพิ่มเจ้าของสินค้าใหม่</button>
 
       <div class="grid-2">
         <div>
@@ -448,7 +455,7 @@
         </div>
         <div>
           <div class="field-label">วันที่รับฝาก</div>
-          <input class="input-box" value="7 ก.ค. 2569" disabled style="color:var(--ink-soft)">
+          <input class="input-box" id="depositDateInput" disabled style="color:var(--ink-soft)">
         </div>
       </div>
 
@@ -466,6 +473,7 @@
   <!-- OWNER SUMMARY -->
   <div class="screen" id="owners">
     <div class="section-title">🧾 สรุปยอดแต่ละเจ้าของ</div>
+<button class="confirm-btn" style="max-width:280px;margin-bottom:20px;background:var(--green);box-shadow:0 5px 0 #3d6b48;" onclick="addOwner()">➕ เพิ่มเจ้าของสินค้าใหม่</button>
     <div class="owner-list" id="ownerList">
       <div style="text-align:center;padding:30px;color:var(--ink-soft);">กำลังโหลดข้อมูล...</div>
     </div>
@@ -508,6 +516,24 @@ testConnection();
   
 // ===== หน้าขายสินค้า =====
 let selectedItem = null;
+  
+  function getThaiDateString(fullYear){
+  const dayNames = ['อาทิตย์','จันทร์','อังคาร','พุธ','พฤหัสบดี','ศุกร์','เสาร์'];
+  const monthNames = ['ม.ค.','ก.พ.','มี.ค.','เม.ย.','พ.ค.','มิ.ย.','ก.ค.','ส.ค.','ก.ย.','ต.ค.','พ.ย.','ธ.ค.'];
+  const now = new Date();
+  const beYear = now.getFullYear() + 543;
+  const yearStr = fullYear ? beYear : String(beYear).slice(-2);
+  return `วัน${dayNames[now.getDay()]} ${now.getDate()} ${monthNames[now.getMonth()]} ${yearStr}`;
+}
+
+function updateClockPill(){
+  document.querySelector('.clock-pill').textContent = '🗓️ ' + getThaiDateString(false);
+  const depositInput = document.getElementById('depositDateInput');
+  if (depositInput) depositInput.value = getThaiDateString(true);
+}
+updateClockPill();
+
+let allProductsCache = [];
 
 async function loadProducts(){
   const grid = document.getElementById('productGrid');
@@ -521,13 +547,18 @@ async function loadProducts(){
     grid.innerHTML = '<div style="grid-column:1/-1;color:red;">โหลดสินค้าไม่สำเร็จ: ' + error.message + '</div>';
     return;
   }
-  if (!data.length) {
-    grid.innerHTML = '<div style="grid-column:1/-1;color:var(--ink-soft);">ยังไม่มีสินค้าในร้าน</div>';
+  allProductsCache = data;
+  renderProductGrid(data);
+}
+
+function renderProductGrid(list){
+  const grid = document.getElementById('productGrid');
+  if (!list.length) {
+    grid.innerHTML = '<div style="grid-column:1/-1;color:var(--ink-soft);text-align:center;padding:30px;">ไม่พบสินค้า</div>';
     return;
   }
-
   grid.innerHTML = '';
-  data.forEach(item => {
+  list.forEach(item => {
     const card = document.createElement('div');
     card.className = 'product-card';
     card.onclick = () => selectProduct(item, card);
@@ -541,6 +572,49 @@ async function loadProducts(){
   });
 }
 
+document.getElementById('searchInput').addEventListener('input', (e) => {
+  const term = e.target.value.trim().toLowerCase();
+  const filtered = allProductsCache.filter(item =>
+    item.name.toLowerCase().includes(term) || item.item_code.includes(term)
+  );
+  renderProductGrid(filtered);
+});
+
+// ===== สแกน QR ด้วยกล้อง =====
+let html5QrCode = null;
+
+function startScanner(){
+  document.getElementById('scannerModal').style.display = 'flex';
+  html5QrCode = new Html5Qrcode('qrReader');
+  html5QrCode.start(
+    { facingMode: 'environment' },
+    { fps: 10, qrbox: 220 },
+    onScanSuccess
+  ).catch(err => {
+    alert('เปิดกล้องไม่สำเร็จ กรุณาอนุญาตให้เว็บใช้กล้องในเบราว์เซอร์ (' + err + ')');
+    document.getElementById('scannerModal').style.display = 'none';
+  });
+}
+
+function stopScanner(){
+  if (html5QrCode){
+    html5QrCode.stop().then(() => html5QrCode.clear()).catch(()=>{});
+  }
+  document.getElementById('scannerModal').style.display = 'none';
+}
+
+function onScanSuccess(decodedText){
+  stopScanner();
+  const code = decodedText.replace('ITEM-', '').trim();
+  const found = allProductsCache.find(item => item.item_code === code);
+  if (!found){
+    alert('ไม่พบสินค้ารหัส ' + code + ' ในร้าน (อาจขายไปแล้ว หรือสแกนป้ายผิดใบ)');
+    return;
+  }
+  document.getElementById('searchInput').value = found.item_code;
+  renderProductGrid([found]);
+}
+  
 function selectProduct(item, cardEl){
   selectedItem = item;
   document.querySelectorAll('.product-card').forEach(c => c.classList.remove('selected'));
@@ -616,12 +690,7 @@ async function confirmSale(){
       btn.classList.add('selected');
     });
   });
-  document.querySelectorAll('.owner-avatar').forEach(av=>{
-    av.addEventListener('click',()=>{
-      document.querySelectorAll('.owner-avatar').forEach(b=>b.classList.remove('selected'));
-      av.classList.add('selected');
-    });
-  });
+  
   document.querySelectorAll('.product-card').forEach(card=>{
     card.addEventListener('click',()=>{
       document.querySelectorAll('.product-card').forEach(c=>c.classList.remove('selected'));
@@ -632,6 +701,51 @@ async function confirmSale(){
   loadOwnerSummary();
 
   loadHomeStats();
+
+  loadOwnerPicker();
+
+let allOwnersCache = [];
+
+async function loadOwnerPicker(){
+  const { data: owners } = await sb.from('owners').select('*');
+  allOwnersCache = owners || [];
+  const picker = document.getElementById('ownerPicker');
+  if (!picker) return; // หน้านี้ไม่มี owner picker (ไม่ใช่ปัญหา)
+  const colors = ['#C99A3E','#5F8B6A','#C1553B','#285C55','#7A6FA6','#3E7CC9','#B6558E','#D68A3E'];
+  picker.innerHTML = '';
+  allOwnersCache.forEach((owner, i) => {
+    const wrap = document.createElement('div');
+    wrap.className = 'owner-wrap';
+    wrap.innerHTML = `<div class="owner-avatar" data-owner-id="${owner.id}" style="background:${colors[i % colors.length]}">${owner.name.charAt(0)}</div><span class="nm">${owner.name}</span>`;
+    wrap.querySelector('.owner-avatar').addEventListener('click', function(){
+      document.querySelectorAll('#ownerPicker .owner-avatar').forEach(a => a.classList.remove('selected'));
+      this.classList.add('selected');
+    });
+    picker.appendChild(wrap);
+  });
+}
+
+async function addOwner(){
+  const name = prompt('ชื่อเจ้าของสินค้าคนใหม่:');
+  if (!name || !name.trim()) return;
+  const { error } = await sb.from('owners').insert({ name: name.trim() });
+  if (error){ alert('เพิ่มไม่สำเร็จ: ' + error.message); return; }
+  loadOwnerPicker();
+  if (document.getElementById('ownerList')) loadOwnerSummary();
+}
+
+async function deleteOwner(ownerId, ownerName){
+  const { data: ownerItems } = await sb.from('items').select('id').eq('owner_id', ownerId);
+  if (ownerItems && ownerItems.length > 0){
+    alert(`ไม่สามารถลบ "${ownerName}" ได้ เพราะยังมีสินค้า ${ownerItems.length} ชิ้นผูกอยู่กับคนนี้ในระบบ (ทั้งที่ขายแล้วและยังไม่ขาย)\n\nกรณีเลิกฝากขายแล้ว แนะนำให้ปล่อยชื่อไว้เฉยๆ ในระบบก็ได้ครับ ไม่ต้องลบ`);
+    return;
+  }
+  if (!confirm(`ยืนยันลบ "${ownerName}" ออกจากระบบ? (คนนี้ไม่มีสินค้าผูกอยู่ ลบได้ปลอดภัย)`)) return;
+  const { error } = await sb.from('owners').delete().eq('id', ownerId);
+  if (error){ alert('ลบไม่สำเร็จ: ' + error.message); return; }
+  loadOwnerSummary();
+  loadOwnerPicker();
+}
 
 async function loadHomeStats(){
   const { data: items } = await sb.from('items').select('*');
@@ -761,8 +875,9 @@ async function loadOwnerSummary(){
       </div>
       <div class="o-amount"><div class="num">${owed.toLocaleString()} ฿</div><div class="lbl">ยอดที่ต้องจ่าย</div></div>
       <button class="pay-status-btn ${isPaid ? 'paid' : 'unpaid'}" data-owner-id="${owner.id}" data-owner-name="${owner.name}" data-owed="${owed.toLocaleString()}" ${isPaid ? 'disabled' : ''}>
-      ${isPaid ? '✓ จ่ายแล้ว' : 'ยังไม่จ่าย'}
-  </button>`;
+  ${isPaid ? '✓ จ่ายแล้ว' : 'ยังไม่จ่าย'}
+</button>
+<button onclick="deleteOwner('${owner.id}','${owner.name.replace(/'/g,"")}')" style="margin-left:8px;background:none;border:none;font-size:20px;cursor:pointer;padding:6px;" title="ลบเจ้าของสินค้า">🗑️</button>`;
     list.appendChild(row);
   });
 
