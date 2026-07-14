@@ -282,10 +282,10 @@
 
   <!-- HOME -->
   <div class="screen active" id="home">
-    <div class="home-top-stats">
-      <div class="mini-stat"><div class="n">12</div><div class="l">ขายวันนี้ (ชิ้น)</div></div>
-      <div class="mini-stat"><div class="n">3,450 ฿</div><div class="l">ยอดขายวันนี้</div></div>
-      <div class="mini-stat"><div class="n">186</div><div class="l">สินค้าในร้านตอนนี้</div></div>
+    <div class="home-top-stats" id="homeStats">
+      <div class="mini-stat"><div class="n">-</div><div class="l">ขายวันนี้ (ชิ้น)</div></div>
+      <div class="mini-stat"><div class="n">-</div><div class="l">ยอดขายวันนี้</div></div>
+      <div class="mini-stat"><div class="n">-</div><div class="l">สินค้าในร้านตอนนี้</div></div>
     </div>
     <div class="home-grid">
       <div class="big-btn" onclick="go('add')">
@@ -630,6 +630,26 @@ async function confirmSale(){
   });
   loadProducts();
   loadOwnerSummary();
+
+  loadHomeStats();
+
+async function loadHomeStats(){
+  const { data: items } = await sb.from('items').select('*');
+  const { data: sales } = await sb.from('sales').select('*');
+
+  const todayStart = new Date();
+  todayStart.setHours(0,0,0,0);
+  const todaySales = sales.filter(s => new Date(s.sold_at) >= todayStart);
+
+  const soldCountToday = todaySales.length;
+  const totalToday = todaySales.reduce((sum,s) => sum + Number(s.sold_price), 0);
+  const remainingStock = items.filter(i => i.status === 'available').length;
+
+  const statEls = document.querySelectorAll('#homeStats .mini-stat .n');
+  statEls[0].textContent = soldCountToday;
+  statEls[1].textContent = totalToday.toLocaleString() + ' ฿';
+  statEls[2].textContent = remainingStock;
+}
 
   loadDashboard();
 
