@@ -474,36 +474,18 @@
   <!-- DASHBOARD -->
   <div class="screen" id="dash">
     <div class="section-title">📊 ภาพรวมร้านวันนี้</div>
-    <div class="dash-grid">
-      <div class="tag-card accent-gold"><div class="hole"></div>
-        <div class="num">3,450 ฿</div><div class="lbl">ยอดขายวันนี้ (12 ชิ้น)</div>
-        <div class="split-row">
-          <div class="split-pill cash">💵 เงินสด 2,100</div>
-          <div class="split-pill transfer">🏦 โอน 1,350</div>
-        </div>
-      </div>
-      <div class="tag-card accent-green"><div class="hole"></div>
-        <div class="num">690 ฿</div><div class="lbl">ค่าคอมมิชชั่นร้านวันนี้</div>
-      </div>
-      <div class="tag-card"><div class="hole"></div>
-        <div class="num">186 ชิ้น</div><div class="lbl">สินค้าคงเหลือทั้งหมด</div>
-      </div>
+    <div class="dash-grid" id="dashGrid">
+      <div style="grid-column:1/-1;text-align:center;padding:20px;color:var(--ink-soft);">กำลังโหลด...</div>
     </div>
 
     <div class="panel-2col">
       <div class="panel">
-        <h3>🏆 ขายดี 5 อันดับ (เดือนนี้)</h3>
-        <div class="best-row"><div class="best-photo">👕</div><div class="best-name">เสื้อยืดลายทาง</div><div class="best-n">14 ชิ้น</div></div>
-        <div class="best-row"><div class="best-photo">👖</div><div class="best-name">กางเกงยีนส์</div><div class="best-n">11 ชิ้น</div></div>
-        <div class="best-row"><div class="best-photo">👗</div><div class="best-name">เดรสลายดอก</div><div class="best-n">9 ชิ้น</div></div>
-        <div class="best-row"><div class="best-photo">🧥</div><div class="best-name">แจ็คเก็ตยีนส์</div><div class="best-n">7 ชิ้น</div></div>
-        <div class="best-row"><div class="best-photo">🧣</div><div class="best-name">ผ้าพันคอไหมพรม</div><div class="best-n">6 ชิ้น</div></div>
+       <h3>🏆 ขายดี 5 อันดับ (เดือนนี้)</h3>
+        <div id="bestSellersList">กำลังโหลด...</div>
       </div>
       <div class="panel">
         <h3>⏰ ต้องดูแลด่วน</h3>
-        <div class="alert-row"><span class="ae">🕒</span><span class="at">เสื้อโค้ทกันหนาว ค้างสต๊อกมา 92 วันแล้ว — ลองลดราคา?</span></div>
-        <div class="alert-row"><span class="ae">💰</span><span class="at">คุณแม่นิด ยังไม่ได้รับเงิน 1,640 ฿</span></div>
-        <div class="alert-row"><span class="ae">💰</span><span class="at">ลุงสมชาย ยังไม่ได้รับเงิน 1,120 ฿</span></div>
+        <div id="alertsList">กำลังโหลด...</div>
       </div>
     </div>
   </div>
@@ -648,6 +630,85 @@ async function confirmSale(){
   });
   loadProducts();
   loadOwnerSummary();
+
+  loadDashboard();
+
+async function loadDashboard(){
+  const { data: items } = await sb.from('items').select('*');
+  const { data: sales } = await sb.from('sales').select('*, items(name, owner_id, created_at)');
+  const { data: owners } = await sb.from('owners').select('*');
+
+  // ยอดขาย "วันนี้"
+  const todayStart = new Date();
+  todayStart.setHours(0,0,0,0);
+  const todaySales = sales.filter(s => new Date(s.sold_at) >= todayStart);
+
+  const totalToday = todaySales.reduce((sum,s) => sum + Number(s.sold_price), 0);
+  const cashToday = todaySales.filter(s => s.payment_method === 'cash').reduce((sum,s) => sum + Number(s.sold_price), 0);
+  const transferToday = todaySales.filter(s => s.payment_method === 'transfer').reduce((sum,s) => sum + Number(s.sold_price), 0);
+  const commissionToday = Math.round(totalToday * 0.2);
+  const remainingStock = items.filter(i => i.status === 'available').length;
+
+  document.getElementById('dashGrid').innerHTML = `
+    <div class="tag-card accent-gold"><div class="hole"></div>
+      <div class="num">${totalToday.toLocaleString()} ฿</div><div class="lbl">ยอดขายวันนี้ (${todaySales.length} ชิ้น)</div>
+      <div class="split-row">
+        <div class="split-pill cash">💵 เงินสด ${cashToday.toLocaleString()}</div>
+        <div class="split-pill transfer">🏦 โอน ${transferToday.toLocaleString()}</div>
+      </div>
+    </div>
+    <div class="tag-card accent-green"><div class="hole"></div>
+      <div class="num">${commissionToday.toLocaleString()} ฿</div><div class="lbl">ค่าคอมมิชชั่นร้านวันนี้</div>
+    </div>
+    <div class="tag-card"><div class="hole"></div>
+      <div class="num">${remainingStock} ชิ้น</div><div class="lbl">สินค้าคงเหลือทั้งหมด</div>
+    </div>`;
+
+  // ขายดี 5 อันดับ เดือนนี้
+  const monthStart = new Date();
+  monthStart.setDate(1); monthStart.setHours(0,0,0,0);
+  const monthSales = sales.filter(s => new Date(s.sold_at) >= monthStart);
+
+  const nameCount = {};
+  monthSales.forEach(s => {
+    const name = s.items ? s.items.name : 'ไม่ทราบชื่อ';
+    nameCount[name] = (nameCount[name] || 0) + 1;
+  });
+  const topSellers = Object.entries(nameCount).sort((a,b) => b[1]-a[1]).slice(0,5);
+
+  const bestList = document.getElementById('bestSellersList');
+  bestList.innerHTML = topSellers.length ? '' : '<div style="color:var(--ink-soft);padding:10px;">ยังไม่มีข้อมูลการขายเดือนนี้</div>';
+  topSellers.forEach(([name, count]) => {
+    bestList.innerHTML += `<div class="best-row"><div class="best-photo">👕</div><div class="best-name">${name}</div><div class="best-n">${count} ชิ้น</div></div>`;
+  });
+
+  // รายการต้องดูแลด่วน: สินค้าค้างสต๊อกนาน + เจ้าของที่ยังไม่ได้รับเงิน
+  const alertsList = document.getElementById('alertsList');
+  alertsList.innerHTML = '';
+
+  const now = new Date();
+  const staleItems = items.filter(i => i.status === 'available').map(i => {
+    const days = Math.floor((now - new Date(i.created_at)) / (1000*60*60*24));
+    return { ...i, days };
+  }).filter(i => i.days >= 60).sort((a,b) => b.days - a.days);
+
+  staleItems.slice(0,3).forEach(i => {
+    alertsList.innerHTML += `<div class="alert-row"><span class="ae">🕒</span><span class="at">${i.name} ค้างสต๊อกมา ${i.days} วันแล้ว — ลองลดราคา?</span></div>`;
+  });
+
+  owners.forEach(owner => {
+    const ownerItems = items.filter(i => i.owner_id === owner.id).map(i => i.id);
+    const unpaidSales = sales.filter(s => ownerItems.includes(s.item_id) && !s.paid);
+    const owed = unpaidSales.reduce((sum,s) => sum + Math.round(s.sold_price*0.8), 0);
+    if (owed > 0) {
+      alertsList.innerHTML += `<div class="alert-row"><span class="ae">💰</span><span class="at">${owner.name} ยังไม่ได้รับเงิน ${owed.toLocaleString()} ฿</span></div>`;
+    }
+  });
+
+  if (!alertsList.innerHTML) {
+    alertsList.innerHTML = '<div style="color:var(--ink-soft);padding:10px;">ไม่มีรายการที่ต้องดูแลด่วนตอนนี้ 🎉</div>';
+  }
+}
 
 async function loadOwnerSummary(){
   const list = document.getElementById('ownerList');
