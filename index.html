@@ -248,6 +248,28 @@
     #printLabel #printQrHolder img, #printLabel #printQrHolder canvas { display: block !important; width: 320px !important; height: 320px !important; margin: 0 auto; }
     #printLabel #printCodeLabel { display: block !important; font-size: 34px; font-weight: 800; margin-top: 18px; font-family: 'IBM Plex Sans Thai', sans-serif; color: #1B413C; }
   }
+
+  #customModalOverlay {
+    display: none; position: fixed; inset: 0; background: rgba(43,42,38,0.55);
+    z-index: 3000; align-items: center; justify-content: center; padding: 20px;
+    backdrop-filter: blur(2px);
+  }
+  #customModalOverlay .modal-card {
+    background: var(--paper); border-radius: 22px; padding: 30px 26px;
+    max-width: 360px; width: 100%; text-align: center;
+    box-shadow: 0 20px 50px rgba(43,42,38,0.28);
+    animation: modalPop .18s ease-out;
+  }
+  @keyframes modalPop { from { transform: scale(.92); opacity:0; } to { transform: scale(1); opacity:1; } }
+  #customModalIcon { font-size: 38px; margin-bottom: 12px; }
+  #customModalMessage { font-size: 15.5px; color: var(--ink); line-height: 1.7; white-space: pre-line; margin-bottom: 24px; font-weight: 500; }
+  #customModalButtons { display: flex; gap: 10px; }
+  #customModalButtons button {
+    flex: 1; border: none; padding: 13px; border-radius: 12px;
+    font-weight: 700; font-size: 15px; cursor: pointer; font-family: inherit;
+  }
+  #customModalButtons .modal-btn-ok { background: var(--teal-dark); color: #fff; }
+  #customModalButtons .modal-btn-cancel { background: var(--bg); color: var(--ink-soft); border: 1.5px solid var(--line) !important; }
   .split-row{display:flex;gap:8px;margin-top:10px;}
   .split-pill{flex:1;text-align:center;padding:6px;border-radius:8px;font-size:12.5px;font-weight:700;}
   .split-pill.cash{background:var(--green-soft);color:#2E5A3B;}
@@ -512,6 +534,32 @@ async function testConnection(){
   else console.log('เชื่อมต่อสำเร็จ! เจ้าของสินค้าในระบบตอนนี้:', data);
 }
 testConnection();
+
+// ===== กล่องข้อความสวยงามแทน alert/confirm ของเบราว์เซอร์ =====
+function showAlert(message, icon){
+  return new Promise((resolve) => {
+    const overlay = document.getElementById('customModalOverlay');
+    document.getElementById('customModalIcon').textContent = icon || 'ℹ️';
+    document.getElementById('customModalMessage').textContent = message;
+    const btnRow = document.getElementById('customModalButtons');
+    btnRow.innerHTML = '<button class="modal-btn-ok">ตกลง</button>';
+    btnRow.querySelector('.modal-btn-ok').onclick = () => { overlay.style.display = 'none'; resolve(true); };
+    overlay.style.display = 'flex';
+  });
+}
+
+function showConfirm(message, icon){
+  return new Promise((resolve) => {
+    const overlay = document.getElementById('customModalOverlay');
+    document.getElementById('customModalIcon').textContent = icon || '❓';
+    document.getElementById('customModalMessage').textContent = message;
+    const btnRow = document.getElementById('customModalButtons');
+    btnRow.innerHTML = '<button class="modal-btn-cancel">ยกเลิก</button><button class="modal-btn-ok">ยืนยัน</button>';
+    btnRow.querySelector('.modal-btn-cancel').onclick = () => { overlay.style.display = 'none'; resolve(false); };
+    btnRow.querySelector('.modal-btn-ok').onclick = () => { overlay.style.display = 'none'; resolve(true); };
+    overlay.style.display = 'flex';
+  });
+}
   
 // ===== หน้าขายสินค้า =====
 let cart = []; // เก็บสินค้าที่เลือกไว้ในบิลนี้ (ขายได้หลายชิ้นต่อบิล)
@@ -602,8 +650,8 @@ function startScanner(){
     { facingMode: 'environment' },
     { fps: 10, qrbox: 220 },
     onScanSuccess
-  ).catch(err => {
-    alert('เปิดกล้องไม่สำเร็จ กรุณาอนุญาตให้เว็บใช้กล้องในเบราว์เซอร์ (' + err + ')');
+  ).catch(async err => {
+    await showAlert('เปิดกล้องไม่สำเร็จ กรุณาอนุญาตให้เว็บใช้กล้องในเบราว์เซอร์ (' + err + ')');
     document.getElementById('scannerModal').style.display = 'none';
   });
 }
@@ -615,12 +663,12 @@ function stopScanner(){
   document.getElementById('scannerModal').style.display = 'none';
 }
 
-function onScanSuccess(decodedText){
+async function onScanSuccess(decodedText){
   stopScanner();
   const code = decodedText.replace('ITEM-', '').trim();
   const found = allProductsCache.find(item => item.item_code === code);
   if (!found){
-    alert('ไม่พบสินค้ารหัส ' + code + ' ในร้าน (อาจขายไปแล้ว หรือสแกนป้ายผิดใบ)');
+    await showAlert('ไม่พบสินค้ารหัส ' + code + ' ในร้าน (อาจขายไปแล้ว หรือสแกนป้ายผิดใบ)');
     return;
   }
   document.getElementById('searchInput').value = found.item_code;
@@ -679,7 +727,7 @@ function updateCartTotal(){
 
 async function confirmSale(){
   if (!cart.length){
-    alert('กรุณาเลือกสินค้าอย่างน้อย 1 ชิ้น');
+    await showAlert('กรุณาเลือกสินค้าอย่างน้อย 1 ชิ้น');
     return;
   }
   const payBtn = document.querySelector('.pay-btn.selected');
@@ -693,18 +741,18 @@ async function confirmSale(){
 
   const { error: saleError } = await sb.from('sales').insert(salesRows);
   if (saleError){
-    alert('บันทึกการขายไม่สำเร็จ: ' + saleError.message);
+    await showAlert('บันทึกการขายไม่สำเร็จ: ' + saleError.message);
     return;
   }
 
   const itemIds = cart.map(c => c.item.id);
   const { error: updateError } = await sb.from('items').update({ status: 'sold' }).in('id', itemIds);
   if (updateError){
-    alert('อัปเดตสถานะสินค้าไม่สำเร็จ: ' + updateError.message);
+    await showAlert('อัปเดตสถานะสินค้าไม่สำเร็จ: ' + updateError.message);
     return;
   }
 
-  alert(`บันทึกการขายเรียบร้อย! รวม ${cart.length} ชิ้น`);
+  await showAlert(`บันทึกการขายเรียบร้อย! รวม ${cart.length} ชิ้น`);
   cart = [];
   renderCart();
   loadProducts();
@@ -775,7 +823,7 @@ async function addCategory(){
   if (!name || !name.trim()) return;
   const { error } = await sb.from('categories').insert({ name: name.trim() });
   if (error){
-    alert('เพิ่มไม่สำเร็จ: ' + error.message);
+    await showAlert('เพิ่มไม่สำเร็จ: ' + error.message);
     return;
   }
   await loadCategories();
@@ -786,18 +834,18 @@ async function deleteCategory(){
   const select = document.getElementById('productTypeSelect');
   const selectedName = select.value;
   if (!selectedName){
-    alert('กรุณาเลือกประเภทที่ต้องการลบก่อน');
+    await showAlert('กรุณาเลือกประเภทที่ต้องการลบก่อน');
     return;
   }
   const { data: itemsUsing } = await sb.from('items').select('id').eq('name', selectedName);
   if (itemsUsing && itemsUsing.length > 0){
-    alert(`ลบไม่ได้ เพราะมีสินค้า ${itemsUsing.length} ชิ้นใช้ประเภท "${selectedName}" อยู่แล้วในระบบ\n\n(สินค้าที่เพิ่มไปแล้วจะไม่หายไป แค่ลบตัวเลือกนี้ออกจากลิสต์ไม่ได้ตอนนี้)`);
+    await showAlert(`ลบไม่ได้ เพราะมีสินค้า ${itemsUsing.length} ชิ้นใช้ประเภท "${selectedName}" อยู่แล้วในระบบ\n\n(สินค้าที่เพิ่มไปแล้วจะไม่หายไป แค่ลบตัวเลือกนี้ออกจากลิสต์ไม่ได้ตอนนี้)`);
     return;
   }
-  if (!confirm(`ยืนยันลบประเภทสินค้า "${selectedName}"?`)) return;
+  if (!await showConfirm(`ยืนยันลบประเภทสินค้า "${selectedName}"?`)) return;
   const { error } = await sb.from('categories').delete().eq('name', selectedName);
   if (error){
-    alert('ลบไม่สำเร็จ: ' + error.message);
+    await showAlert('ลบไม่สำเร็จ: ' + error.message);
     return;
   }
   loadCategories();
@@ -828,7 +876,7 @@ async function addOwner(){
   const name = prompt('ชื่อเจ้าของสินค้าคนใหม่:');
   if (!name || !name.trim()) return;
   const { error } = await sb.from('owners').insert({ name: name.trim() });
-  if (error){ alert('เพิ่มไม่สำเร็จ: ' + error.message); return; }
+  if (error){ await showAlert('เพิ่มไม่สำเร็จ: ' + error.message); return; }
   loadOwnerPicker();
   if (document.getElementById('ownerList')) loadOwnerSummary();
 }
@@ -836,12 +884,12 @@ async function addOwner(){
 async function deleteOwner(ownerId, ownerName){
   const { data: ownerItems } = await sb.from('items').select('id').eq('owner_id', ownerId);
   if (ownerItems && ownerItems.length > 0){
-    alert(`ไม่สามารถลบ "${ownerName}" ได้ เพราะยังมีสินค้า ${ownerItems.length} ชิ้นผูกอยู่กับคนนี้ในระบบ (ทั้งที่ขายแล้วและยังไม่ขาย)\n\nกรณีเลิกฝากขายแล้ว แนะนำให้ปล่อยชื่อไว้เฉยๆ ในระบบก็ได้ครับ ไม่ต้องลบ`);
+    await showAlert(`ไม่สามารถลบ "${ownerName}" ได้ เพราะยังมีสินค้า ${ownerItems.length} ชิ้นผูกอยู่กับคนนี้ในระบบ (ทั้งที่ขายแล้วและยังไม่ขาย)\n\nกรณีเลิกฝากขายแล้ว แนะนำให้ปล่อยชื่อไว้เฉยๆ ในระบบก็ได้ครับ ไม่ต้องลบ`);
     return;
   }
-  if (!confirm(`ยืนยันลบ "${ownerName}" ออกจากระบบ? (คนนี้ไม่มีสินค้าผูกอยู่ ลบได้ปลอดภัย)`)) return;
+  if (!await showConfirm(`ยืนยันลบ "${ownerName}" ออกจากระบบ? (คนนี้ไม่มีสินค้าผูกอยู่ ลบได้ปลอดภัย)`)) return;
   const { error } = await sb.from('owners').delete().eq('id', ownerId);
-  if (error){ alert('ลบไม่สำเร็จ: ' + error.message); return; }
+  if (error){ await showAlert('ลบไม่สำเร็จ: ' + error.message); return; }
   loadOwnerSummary();
   loadOwnerPicker();
 }
@@ -1014,7 +1062,7 @@ async function loadOwnerSummary(){
       const owedAmount = btn.getAttribute('data-owed');
 
       const confirmMsg = `ยืนยันจ่ายเงินให้ "${ownerName}" จำนวน ${owedAmount} บาท ใช่หรือไม่?\n\nหมายเหตุ: กดยืนยันแล้วจะแก้ไขเองไม่ได้ กรุณาเช็คยอดให้ถูกต้องก่อนกด`;
-      if (!confirm(confirmMsg)) return; // กดยกเลิก ไม่ทำอะไรต่อ
+      if (!await showConfirm(confirmMsg)) return; // กดยกเลิก ไม่ทำอะไรต่อ
 
       btn.disabled = true; // ล็อกปุ่มกันกดซ้ำระหว่างกำลังบันทึก
       btn.textContent = 'กำลังบันทึก...';
@@ -1087,7 +1135,7 @@ async function generateCode(){
   const { data, error } = await sb.rpc('get_next_item_code');
   if (error) {
     console.error('ออกรหัสไม่สำเร็จ:', error.message);
-    alert('เกิดข้อผิดพลาด ลองใหม่อีกครั้ง');
+    await showAlert('เกิดข้อผิดพลาด ลองใหม่อีกครั้ง');
     return;
   }
   currentCode = data;
@@ -1180,7 +1228,7 @@ async function finishAdd(){
   const ownerId = ownerAvatar ? ownerAvatar.getAttribute('data-owner-id') : null;
 
   if (!price || !ownerId) {
-    alert('กรุณากรอกราคา และเลือกเจ้าของสินค้าให้ครบ');
+    await showAlert('กรุณากรอกราคา และเลือกเจ้าของสินค้าให้ครบ');
     return;
   }
 
@@ -1201,7 +1249,7 @@ async function finishAdd(){
 
   if (error) {
     console.error('บันทึกสินค้าไม่สำเร็จ:', error.message);
-    alert('เกิดข้อผิดพลาด: ' + error.message);
+    await showAlert('เกิดข้อผิดพลาด: ' + error.message);
     return;
   }
 
@@ -1210,6 +1258,14 @@ async function finishAdd(){
   for(let i=1;i<=4;i++) document.getElementById('stepPill'+i).classList.replace('current','done');
 }
 </script>
+<div id="customModalOverlay">
+  <div class="modal-card">
+    <div id="customModalIcon"></div>
+    <div id="customModalMessage"></div>
+    <div id="customModalButtons"></div>
+  </div>
+</div>
+
 <div id="printLabel" style="display:none;">
   <div id="printQrHolder"></div>
   <div id="printCodeLabel"></div>
