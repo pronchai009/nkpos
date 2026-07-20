@@ -238,12 +238,14 @@
     html, body { height: auto !important; margin: 0 !important; padding: 0 !important; }
     body > * { display: none !important; }
     #printLabel {
-      display: flex !important; flex-direction: column; align-items: center; justify-content: center;
-      position: fixed; top: 0; left: 0; width: 100%; height: 100%;
+      display: block !important;
+      width: 100%;
+      padding: 60px 20px;
       text-align: center;
+      box-sizing: border-box;
     }
-    #printLabel #printQrHolder { display: flex !important; justify-content: center; }
-    #printLabel #printQrHolder img, #printLabel #printQrHolder canvas { width: 320px !important; height: 320px !important; }
+    #printLabel #printQrHolder { display: block !important; margin: 0 auto; width: 320px; }
+    #printLabel #printQrHolder img, #printLabel #printQrHolder canvas { display: block !important; width: 320px !important; height: 320px !important; margin: 0 auto; }
     #printLabel #printCodeLabel { display: block !important; font-size: 34px; font-weight: 800; margin-top: 18px; font-family: 'IBM Plex Sans Thai', sans-serif; color: #1B413C; }
   }
   .split-row{display:flex;gap:8px;margin-top:10px;}
@@ -1099,6 +1101,18 @@ async function generateCode(){
   if (window.QRCode){
     new QRCode(qrEl, { text: 'ITEM-' + currentCode, width:200, height:200, colorDark:'#1B413C', colorLight:'#ffffff' });
     new QRCode(printQrHolder, { text: 'ITEM-' + currentCode, width:320, height:320, colorDark:'#1B413C', colorLight:'#ffffff' });
+    // แปลง canvas เป็นรูปภาพนิ่ง (img) แทน — iOS มักไม่พิมพ์เนื้อหาที่วาดด้วย canvas ให้ถูกต้อง
+    setTimeout(() => {
+      const canvas = printQrHolder.querySelector('canvas');
+      if (canvas) {
+        const img = document.createElement('img');
+        img.src = canvas.toDataURL('image/png');
+        img.style.width = '320px';
+        img.style.height = '320px';
+        printQrHolder.innerHTML = '';
+        printQrHolder.appendChild(img);
+      }
+    }, 50);
   } else {
     qrEl.textContent = 'ITEM-' + currentCode;
     printQrHolder.textContent = 'ITEM-' + currentCode;
