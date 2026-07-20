@@ -232,6 +232,12 @@
   .tag-card .lbl{font-size:14px;color:var(--ink-soft);margin-top:4px;font-weight:600;}
   .tag-card.accent-gold{border-left-color:var(--gold);}
   .tag-card.accent-green{border-left-color:var(--green);}
+
+  @media print {
+    body * { visibility: hidden; }
+    #printArea, #printArea * { visibility: visible; }
+    #printArea { position: fixed; top: 0; left: 0; width: 100%; text-align: center; }
+  }
   .split-row{display:flex;gap:8px;margin-top:10px;}
   .split-pill{flex:1;text-align:center;padding:6px;border-radius:8px;font-size:12.5px;font-weight:700;}
   .split-pill.cash{background:var(--green-soft);color:#2E5A3B;}
@@ -325,24 +331,20 @@
         </div>
       </div>
       <div class="ticket-panel">
-        <div class="ticket-title">🏷️ สรุปการขาย</div>
-        <div class="ticket-row"><span>สินค้า</span><span id="ticketName">ยังไม่ได้เลือก</span></div>
-        <div class="ticket-row"><span>เจ้าของ</span><span id="ticketOwner">-</span></div>
-        <div class="ticket-row"><span>ตั้งราคาไว้</span><span id="ticketListedPrice">-</span></div>
+        <div class="ticket-title">🧺 ตะกร้าบิลนี้</div>
+        <div id="cartList" style="margin-bottom:14px;">
+          <div style="color:var(--ink-soft);text-align:center;padding:14px 0;">ยังไม่ได้เลือกสินค้า</div>
+        </div>
 
-        <div class="field-label" style="margin-top:14px;">ราคาที่ขายได้จริง</div>
-        <input class="price-input" id="soldPriceInput" value="0">
-
-        <div class="field-label">วิธีจ่ายเงิน</div>
+        <div class="field-label">วิธีจ่ายเงิน (ทั้งบิล)</div>
         <div class="pay-options">
         <div class="pay-btn selected cash"><span class="pe">💵</span>เงินสด</div>
         <div class="pay-btn"><span class="pe">🏦</span>โอนเงิน</div>
          </div>
 
-        <div class="ticket-row total"><span>ร้านได้ (20%)</span><span id="shopCut">0 ฿</span></div>
-        <div class="ticket-row total"><span>เจ้าของได้</span><span id="ownerCut">0 ฿</span></div>
+        <div class="ticket-row total"><span>รวมทั้งบิล</span><span id="cartTotal">0 ฿</span></div>
 
-        <button class="confirm-btn" style="margin-top:16px;" onclick="confirmSale()">✅ ยืนยันการขาย</button>
+        <button class="confirm-btn" style="margin-top:16px;" onclick="confirmSale()">✅ ยืนยันการขายทั้งบิล</button>
       </div>
     </div>
   </div>
@@ -371,8 +373,9 @@
       <div id="codeDisplay" style="font-family:'IBM Plex Sans Thai';font-size:56px;font-weight:800;color:var(--teal-dark);letter-spacing:4px;margin-bottom:18px;">— — — —</div>
 
       <div id="qrWrap" style="display:none;flex-direction:column;align-items:center;margin-bottom:20px;">
-        <div style="background:#fff;padding:14px;border-radius:14px;border:2.5px solid var(--line);display:inline-block;">
+        <div id="printArea" style="background:#fff;padding:14px;border-radius:14px;border:2.5px solid var(--line);display:inline-block;">
           <div id="qrcode"></div>
+          <div style="font-weight:800;margin-top:6px;" id="printCodeLabel"></div>
         </div>
         <div style="font-size:13px;color:var(--ink-soft);margin-top:10px;">แปะป้ายนี้บนตัวสินค้า แล้วกด "ต่อไป"</div>
       </div>
@@ -406,32 +409,19 @@
         <span style="font-size:22px;">🏷️</span>
         <span style="font-weight:700;color:var(--teal-dark);">รหัสสินค้าตัวนี้คือ <span class="codeReminder" style="font-size:18px;">0000</span></span>
       </div>
-      <div class="grid-2">
-        <div>
-          <div class="field-label">ประเภทสินค้า</div>
-          <select class="input-box">
-            <option>เสื้อยืด</option>
-            <option>เสื้อเชิ้ต</option>
-            <option>กางเกง</option>
-            <option>กระโปรง / เดรส</option>
-            <option>แจ็คเก็ต</option>
-          </select>
-        </div>
-        <div>
-          <div class="field-label">ไซส์</div>
-          <select class="input-box">
-            <option>S</option><option>M</option><option>L</option><option>XL</option>
-          </select>
-        </div>
-      </div>
+      <div class="field-label">ประเภทสินค้า</div>
+      <select class="input-box" id="productTypeSelect">
+        <option>เสื้อยืด</option>
+        <option>เสื้อเชิ้ต</option>
+        <option>กางเกง</option>
+        <option>กระโปรง / เดรส</option>
+        <option>แจ็คเก็ต</option>
+      </select>
 
-      <div class="field-label">สภาพสินค้า</div>
-      <div class="grade-picker">
-        <div class="grade-btn selected">A<br><span style="font-weight:400;font-size:12px;">เกือบใหม่</span></div>
-        <div class="grade-btn">B<br><span style="font-weight:400;font-size:12px;">มีตำหนิเล็กน้อย</span></div>
-        <div class="grade-btn">C<br><span style="font-weight:400;font-size:12px;">ใช้งานมาเยอะ</span></div>
-      </div>
-      <button class="confirm-btn" onclick="goStep(4)">➜ ต่อไป: เจ้าของ &amp; ราคา</button>
+      <div class="field-label">หมายเหตุ (ไซส์ สภาพสินค้า ตำหนิ ฯลฯ)</div>
+      <textarea class="input-box" id="itemNote" rows="3" placeholder="เช่น ไซส์ M สภาพเกือบใหม่ มีตำหนิเล็กน้อยที่แขนเสื้อ..." style="resize:vertical;font-family:inherit;width:100%;box-sizing:border-box;"></textarea>
+
+      <button class="confirm-btn" onclick="goStep(4)" style="margin-top:16px;">➜ ต่อไป: เจ้าของ &amp; ราคา</button>
     </div>
 
     <!-- STEP 4: OWNER + PRICE -->
@@ -514,7 +504,7 @@ async function testConnection(){
 testConnection();
   
 // ===== หน้าขายสินค้า =====
-let selectedItem = null;
+let cart = []; // เก็บสินค้าที่เลือกไว้ในบิลนี้ (ขายได้หลายชิ้นต่อบิล)
   
   function getThaiDateString(fullYear){
   const dayNames = ['อาทิตย์','จันทร์','อังคาร','พุธ','พฤหัสบดี','ศุกร์','เสาร์'];
@@ -550,6 +540,17 @@ async function loadProducts(){
   renderProductGrid(data);
 }
 
+function getCategoryEmoji(name){
+  const map = {
+    'เสื้อยืด': '👕',
+    'เสื้อเชิ้ต': '👔',
+    'กางเกง': '👖',
+    'กระโปรง / เดรส': '👗',
+    'แจ็คเก็ต': '🧥'
+  };
+  return map[name] || '🏷️';
+}
+
 function renderProductGrid(list){
   const grid = document.getElementById('productGrid');
   if (!list.length) {
@@ -558,11 +559,13 @@ function renderProductGrid(list){
   }
   grid.innerHTML = '';
   list.forEach(item => {
+    const inCart = cart.some(c => c.item.id === item.id);
     const card = document.createElement('div');
-    card.className = 'product-card';
-    card.onclick = () => selectProduct(item, card);
+    card.className = 'product-card' + (inCart ? ' selected' : '');
+    card.setAttribute('data-item-id', item.id);
+    card.onclick = () => toggleCartItem(item, card);
     card.innerHTML = `
-      <div class="product-photo">${item.photo_url ? `<img src="${item.photo_url}" style="width:100%;height:100%;object-fit:cover;">` : '👕'}</div>
+      <div class="product-photo">${item.photo_url ? `<img src="${item.photo_url}" style="width:100%;height:100%;object-fit:cover;">` : getCategoryEmoji(item.name)}</div>
       <div class="product-info">
         <div class="pname">${item.name} (${item.item_code})</div>
         <div class="owner-chip"><span class="owner-dot" style="background:#C99A3E"></span>${item.owners ? item.owners.name : '-'}</div>
@@ -614,58 +617,86 @@ function onScanSuccess(decodedText){
   renderProductGrid([found]);
 }
   
-function selectProduct(item, cardEl){
-  selectedItem = item;
-  document.querySelectorAll('.product-card').forEach(c => c.classList.remove('selected'));
-  cardEl.classList.add('selected');
-
-  document.getElementById('ticketName').textContent = `${item.name} (${item.item_code})`;
-  document.getElementById('ticketOwner').textContent = item.owners ? item.owners.name : '-';
-  document.getElementById('ticketListedPrice').textContent = item.price + ' ฿';
-  document.getElementById('soldPriceInput').value = item.price;
-  updateSplit();
+function toggleCartItem(item, cardEl){
+  const idx = cart.findIndex(c => c.item.id === item.id);
+  if (idx >= 0){
+    cart.splice(idx, 1);
+    cardEl.classList.remove('selected');
+  } else {
+    cart.push({ item, soldPrice: item.price });
+    cardEl.classList.add('selected');
+  }
+  renderCart();
 }
 
-function updateSplit(){
-  const price = parseFloat(document.getElementById('soldPriceInput').value) || 0;
-  const shopCut = Math.round(price * 0.2);
-  document.getElementById('shopCut').textContent = shopCut + ' ฿';
-  document.getElementById('ownerCut').textContent = (price - shopCut) + ' ฿';
-}
-document.getElementById('soldPriceInput').addEventListener('input', updateSplit);
-
-async function confirmSale(){
-  if (!selectedItem){
-    alert('กรุณาเลือกสินค้าก่อน');
+function renderCart(){
+  const list = document.getElementById('cartList');
+  if (!cart.length){
+    list.innerHTML = '<div style="color:var(--ink-soft);text-align:center;padding:14px 0;">ยังไม่ได้เลือกสินค้า</div>';
+    document.getElementById('cartTotal').textContent = '0 ฿';
     return;
   }
-  const soldPrice = parseFloat(document.getElementById('soldPriceInput').value);
+  list.innerHTML = '';
+  cart.forEach((c, i) => {
+    const row = document.createElement('div');
+    row.style.cssText = 'display:flex;align-items:center;gap:6px;padding:6px 0;border-bottom:1px dashed var(--line);font-size:13.5px;';
+    row.innerHTML = `
+      <span style="flex:1;">${c.item.name} (${c.item.item_code})</span>
+      <input type="number" value="${c.soldPrice}" style="width:65px;padding:4px 6px;border:1.5px solid var(--line);border-radius:8px;text-align:right;" onchange="updateCartPrice(${i}, this.value)">
+      <button onclick="removeFromCart(${i})" style="background:none;border:none;font-size:16px;cursor:pointer;">✕</button>`;
+    list.appendChild(row);
+  });
+  updateCartTotal();
+}
+
+function updateCartPrice(index, value){
+  cart[index].soldPrice = parseFloat(value) || 0;
+  updateCartTotal();
+}
+
+function removeFromCart(index){
+  const removedId = cart[index].item.id;
+  cart.splice(index, 1);
+  renderCart();
+  const card = document.querySelector(`.product-card[data-item-id="${removedId}"]`);
+  if (card) card.classList.remove('selected');
+}
+
+function updateCartTotal(){
+  const total = cart.reduce((sum, c) => sum + c.soldPrice, 0);
+  document.getElementById('cartTotal').textContent = total.toLocaleString() + ' ฿';
+}
+
+async function confirmSale(){
+  if (!cart.length){
+    alert('กรุณาเลือกสินค้าอย่างน้อย 1 ชิ้น');
+    return;
+  }
   const payBtn = document.querySelector('.pay-btn.selected');
   const paymentMethod = payBtn && payBtn.classList.contains('transfer') ? 'transfer' : 'cash';
 
-  const { error: saleError } = await sb.from('sales').insert({
-    item_id: selectedItem.id,
-    sold_price: soldPrice,
+  const salesRows = cart.map(c => ({
+    item_id: c.item.id,
+    sold_price: c.soldPrice,
     payment_method: paymentMethod
-  });
+  }));
+
+  const { error: saleError } = await sb.from('sales').insert(salesRows);
   if (saleError){
     alert('บันทึกการขายไม่สำเร็จ: ' + saleError.message);
     return;
   }
 
-  const { error: updateError } = await sb.from('items')
-    .update({ status: 'sold' })
-    .eq('id', selectedItem.id);
+  const itemIds = cart.map(c => c.item.id);
+  const { error: updateError } = await sb.from('items').update({ status: 'sold' }).in('id', itemIds);
   if (updateError){
     alert('อัปเดตสถานะสินค้าไม่สำเร็จ: ' + updateError.message);
     return;
   }
 
-  alert('บันทึกการขายเรียบร้อย!');
-  selectedItem = null;
-  document.getElementById('ticketName').textContent = 'ยังไม่ได้เลือก';
-  document.getElementById('ticketOwner').textContent = '-';
-  document.getElementById('ticketListedPrice').textContent = '-';
+  alert(`บันทึกการขายเรียบร้อย! รวม ${cart.length} ชิ้น`);
+  cart = [];
+  renderCart();
   loadProducts();
 }
   function go(name){
@@ -673,6 +704,13 @@ async function confirmSale(){
     document.querySelectorAll('.tab').forEach(t=>t.classList.remove('active'));
     document.getElementById(name).classList.add('active');
     document.querySelector('.tab[data-screen="'+name+'"]').classList.add('active');
+
+    // โหลดข้อมูลใหม่ทุกครั้งที่สลับแท็บ กันข้อมูลเก่าค้าง ไม่ต้องรีเฟรชเว็บเอง
+    if (name === 'home') loadHomeStats();
+    if (name === 'sell') loadProducts();
+    if (name === 'owners') loadOwnerSummary();
+    if (name === 'dash') loadDashboard();
+    if (name === 'add') loadOwnerPicker();
   }
   document.querySelectorAll('.tab').forEach(tab=>{
     tab.addEventListener('click',()=>go(tab.getAttribute('data-screen')));
@@ -868,7 +906,7 @@ async function loadOwnerSummary(){
     row.className = 'owner-row';
     row.innerHTML = `
       <div class="o-avatar" style="background:#C99A3E">${owner.name.charAt(0)}</div>
-      <div style="flex:1">
+      <div style="flex:1" class="press-target">
         <div class="o-name">${owner.name}</div>
         <div class="o-meta">ขายแล้ว ${soldCount} ชิ้น · เหลือในร้าน ${remaining} ชิ้น</div>
       </div>
@@ -876,8 +914,34 @@ async function loadOwnerSummary(){
       <button class="pay-status-btn ${isPaid ? 'paid' : 'unpaid'}" data-owner-id="${owner.id}" data-owner-name="${owner.name}" data-owed="${owed.toLocaleString()}" ${isPaid ? 'disabled' : ''}>
   ${isPaid ? '✓ จ่ายแล้ว' : 'ยังไม่จ่าย'}
 </button>
-<button onclick="deleteOwner('${owner.id}','${owner.name.replace(/'/g,"")}')" style="margin-left:8px;background:none;border:none;font-size:20px;cursor:pointer;padding:6px;" title="ลบเจ้าของสินค้า">🗑️</button>`;
+<button class="owner-delete-btn" data-owner-id="${owner.id}" data-owner-name="${owner.name.replace(/'/g,"")}" style="display:none;background:none;border:none;font-size:20px;cursor:pointer;padding:6px;margin-left:4px;" title="ลบเจ้าของสินค้า">🗑️</button>`;
     list.appendChild(row);
+  });
+
+  // กดชื่อเจ้าของค้างไว้ 0.6 วิ ถึงจะโผล่ปุ่มลบ (กันมือลั่น) แล้วซ่อนกลับเองใน 4 วิ
+  document.querySelectorAll('#ownerList .press-target').forEach(target => {
+    let pressTimer = null;
+    const reveal = () => {
+      pressTimer = setTimeout(() => {
+        const delBtn = target.parentElement.querySelector('.owner-delete-btn');
+        if (delBtn){
+          delBtn.style.display = 'inline-block';
+          setTimeout(() => { delBtn.style.display = 'none'; }, 4000);
+        }
+      }, 600);
+    };
+    const cancel = () => clearTimeout(pressTimer);
+    target.addEventListener('mousedown', reveal);
+    target.addEventListener('touchstart', reveal);
+    target.addEventListener('mouseup', cancel);
+    target.addEventListener('mouseleave', cancel);
+    target.addEventListener('touchend', cancel);
+  });
+
+  document.querySelectorAll('#ownerList .owner-delete-btn').forEach(btn => {
+    btn.addEventListener('click', () => {
+      deleteOwner(btn.getAttribute('data-owner-id'), btn.getAttribute('data-owner-name'));
+    });
   });
 
   // ผูกปุ่ม "ยังไม่จ่าย/จ่ายแล้ว" ให้ทำงานกับฐานข้อมูลจริง พร้อมยืนยันก่อนกด + กดย้อนกลับได้
@@ -981,6 +1045,8 @@ async function generateCode(){
 }
 
   function doPrint(){
+    document.getElementById('printCodeLabel').textContent = 'ITEM-' + currentCode;
+    window.print();
     document.getElementById('printBtn').textContent = '✓ พิมพ์ป้ายแล้ว';
     document.getElementById('printBtn').style.background = 'var(--green)';
     document.getElementById('printBtn').style.boxShadow = '0 5px 0 #3d6b48';
@@ -1010,6 +1076,8 @@ async function generateCode(){
   document.getElementById('nextToPhotoBtn').style.display = 'none';
   selectedPhotoFile = null;
   document.getElementById('photoDropZone').innerHTML = '<span class="pe">📷</span>แตะเพื่อถ่ายรูปสินค้า';
+  document.getElementById('itemNote').value = '';
+  document.querySelectorAll('#ownerPicker .owner-avatar').forEach(a => a.classList.remove('selected'));
   goStep(1);
   loadProducts();
 }
@@ -1024,10 +1092,8 @@ document.getElementById('photoInput').addEventListener('change', (e) => {
 });
 
 async function finishAdd(){
-  const productType = document.querySelectorAll('#detailStepCard select')[0].value;
-  const size = document.querySelectorAll('#detailStepCard select')[1].value;
-  const gradeBtn = document.querySelector('#detailStepCard .grade-btn.selected');
-  const grade = gradeBtn ? gradeBtn.textContent.trim().charAt(0) : 'A';
+  const productType = document.getElementById('productTypeSelect').value;
+  const note = document.getElementById('itemNote').value.trim();
   const priceInput = document.querySelector('#ownerStepCard input.input-box');
   const price = parseFloat(priceInput.value);
   const ownerAvatar = document.querySelector('#ownerStepCard .owner-avatar.selected');
@@ -1046,7 +1112,8 @@ async function finishAdd(){
   const { error } = await sb.from('items').insert({
     item_code: currentCode,
     owner_id: ownerId,
-    name: `${productType} ไซส์ ${size} เกรด ${grade}`,
+    name: productType,
+    note: note || null,
     price: price,
     photo_url: photoUrl,
     status: 'available'
