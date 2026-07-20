@@ -234,9 +234,20 @@
   .tag-card.accent-green{border-left-color:var(--green);}
 
   @media print {
+    @page { margin: 0; }
     body * { visibility: hidden; }
     #printArea, #printArea * { visibility: visible; }
-    #printArea { position: fixed; top: 0; left: 0; width: 100%; text-align: center; }
+    #printArea {
+      position: fixed; top: 50%; left: 50%;
+      transform: translate(-50%, -50%);
+      width: 80vw; max-width: 420px;
+      padding: 40px 24px !important;
+      border: none !important;
+      text-align: center;
+    }
+    #printArea #qrcode { display: flex; justify-content: center; }
+    #printArea #qrcode img, #printArea #qrcode canvas { width: 100% !important; height: auto !important; max-width: 320px; }
+    #printCodeLabel { font-size: 34px !important; margin-top: 18px !important; }
   }
   .split-row{display:flex;gap:8px;margin-top:10px;}
   .split-pill{flex:1;text-align:center;padding:6px;border-radius:8px;font-size:12.5px;font-weight:700;}
@@ -1035,7 +1046,7 @@ async function generateCode(){
   const qrEl = document.getElementById('qrcode');
   qrEl.innerHTML = '';
   if (window.QRCode){
-    new QRCode(qrEl, { text: 'ITEM-' + currentCode, width:150, height:150, colorDark:'#1B413C', colorLight:'#ffffff' });
+    new QRCode(qrEl, { text: 'ITEM-' + currentCode, width:200, height:200, colorDark:'#1B413C', colorLight:'#ffffff' });
   } else {
     qrEl.textContent = 'ITEM-' + currentCode;
   }
