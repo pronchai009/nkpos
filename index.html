@@ -234,20 +234,17 @@
   .tag-card.accent-green{border-left-color:var(--green);}
 
   @media print {
-    @page { margin: 0; }
-    body * { visibility: hidden; }
-    #printArea, #printArea * { visibility: visible; }
-    #printArea {
-      position: fixed; top: 50%; left: 50%;
-      transform: translate(-50%, -50%);
-      width: 80vw; max-width: 420px;
-      padding: 40px 24px !important;
-      border: none !important;
+    @page { margin: 0; size: auto; }
+    html, body { height: auto !important; margin: 0 !important; padding: 0 !important; }
+    body > * { display: none !important; }
+    #printLabel {
+      display: flex !important; flex-direction: column; align-items: center; justify-content: center;
+      position: fixed; top: 0; left: 0; width: 100%; height: 100%;
       text-align: center;
     }
-    #printArea #qrcode { display: flex; justify-content: center; }
-    #printArea #qrcode img, #printArea #qrcode canvas { width: 100% !important; height: auto !important; max-width: 320px; }
-    #printCodeLabel { font-size: 34px !important; margin-top: 18px !important; }
+    #printLabel #printQrHolder { display: flex !important; justify-content: center; }
+    #printLabel #printQrHolder img, #printLabel #printQrHolder canvas { width: 320px !important; height: 320px !important; }
+    #printLabel #printCodeLabel { display: block !important; font-size: 34px; font-weight: 800; margin-top: 18px; font-family: 'IBM Plex Sans Thai', sans-serif; color: #1B413C; }
   }
   .split-row{display:flex;gap:8px;margin-top:10px;}
   .split-pill{flex:1;text-align:center;padding:6px;border-radius:8px;font-size:12.5px;font-weight:700;}
@@ -384,9 +381,9 @@
       <div id="codeDisplay" style="font-family:'IBM Plex Sans Thai';font-size:56px;font-weight:800;color:var(--teal-dark);letter-spacing:4px;margin-bottom:18px;">— — — —</div>
 
       <div id="qrWrap" style="display:none;flex-direction:column;align-items:center;margin-bottom:20px;">
-        <div id="printArea" style="background:#fff;padding:14px;border-radius:14px;border:2.5px solid var(--line);display:inline-block;">
+        <div style="background:#fff;padding:14px;border-radius:14px;border:2.5px solid var(--line);display:inline-block;">
           <div id="qrcode"></div>
-          <div style="font-weight:800;margin-top:6px;" id="printCodeLabel"></div>
+          <div style="font-weight:800;margin-top:6px;" id="onScreenCodeLabel"></div>
         </div>
         <div style="font-size:13px;color:var(--ink-soft);margin-top:10px;">แปะป้ายนี้บนตัวสินค้า แล้วกด "ต่อไป"</div>
       </div>
@@ -422,12 +419,12 @@
       </div>
       <div class="field-label">ประเภทสินค้า</div>
       <select class="input-box" id="productTypeSelect">
-        <option>เสื้อยืด</option>
-        <option>เสื้อเชิ้ต</option>
-        <option>กางเกง</option>
-        <option>กระโปรง / เดรส</option>
-        <option>แจ็คเก็ต</option>
+        <option>กำลังโหลด...</option>
       </select>
+      <div style="display:flex;gap:16px;margin:-8px 0 18px;">
+        <button type="button" style="background:none;border:none;color:var(--teal-dark);font-weight:700;cursor:pointer;padding:0;font-size:13.5px;text-decoration:underline;" onclick="addCategory()">➕ เพิ่มประเภทใหม่</button>
+        <button type="button" style="background:none;border:none;color:var(--coral);font-weight:700;cursor:pointer;padding:0;font-size:13.5px;text-decoration:underline;" onclick="deleteCategory()">🗑️ ลบประเภทที่เลือก</button>
+      </div>
 
       <div class="field-label">หมายเหตุ (ไซส์ สภาพสินค้า ตำหนิ ฯลฯ)</div>
       <textarea class="input-box" id="itemNote" rows="3" placeholder="เช่น ไซส์ M สภาพเกือบใหม่ มีตำหนิเล็กน้อยที่แขนเสื้อ..." style="resize:vertical;font-family:inherit;width:100%;box-sizing:border-box;"></textarea>
@@ -721,7 +718,7 @@ async function confirmSale(){
     if (name === 'sell') loadProducts();
     if (name === 'owners') loadOwnerSummary();
     if (name === 'dash') loadDashboard();
-    if (name === 'add') loadOwnerPicker();
+    if (name === 'add') { loadOwnerPicker(); loadCategories(); }
   }
   document.querySelectorAll('.tab').forEach(tab=>{
     tab.addEventListener('click',()=>go(tab.getAttribute('data-screen')));
@@ -751,6 +748,58 @@ async function confirmSale(){
   loadHomeStats();
 
   loadOwnerPicker();
+  loadCategories();
+
+let allCategoriesCache = [];
+
+async function loadCategories(){
+  const select = document.getElementById('productTypeSelect');
+  if (!select) return;
+  const { data, error } = await sb.from('categories').select('*').order('created_at', { ascending: true });
+  if (error || !data){
+    select.innerHTML = '<option>โหลดไม่สำเร็จ</option>';
+    return;
+  }
+  allCategoriesCache = data;
+  if (!data.length){
+    select.innerHTML = '<option>ยังไม่มีประเภทสินค้า กด "เพิ่มประเภทใหม่"</option>';
+    return;
+  }
+  select.innerHTML = data.map(c => `<option>${c.name}</option>`).join('');
+}
+
+async function addCategory(){
+  const name = prompt('ชื่อประเภทสินค้าใหม่ เช่น "กระเป๋า" หรือ "รองเท้า":');
+  if (!name || !name.trim()) return;
+  const { error } = await sb.from('categories').insert({ name: name.trim() });
+  if (error){
+    alert('เพิ่มไม่สำเร็จ: ' + error.message);
+    return;
+  }
+  await loadCategories();
+  document.getElementById('productTypeSelect').value = name.trim();
+}
+
+async function deleteCategory(){
+  const select = document.getElementById('productTypeSelect');
+  const selectedName = select.value;
+  if (!selectedName){
+    alert('กรุณาเลือกประเภทที่ต้องการลบก่อน');
+    return;
+  }
+  const { data: itemsUsing } = await sb.from('items').select('id').eq('name', selectedName);
+  if (itemsUsing && itemsUsing.length > 0){
+    alert(`ลบไม่ได้ เพราะมีสินค้า ${itemsUsing.length} ชิ้นใช้ประเภท "${selectedName}" อยู่แล้วในระบบ\n\n(สินค้าที่เพิ่มไปแล้วจะไม่หายไป แค่ลบตัวเลือกนี้ออกจากลิสต์ไม่ได้ตอนนี้)`);
+    return;
+  }
+  if (!confirm(`ยืนยันลบประเภทสินค้า "${selectedName}"?`)) return;
+  const { error } = await sb.from('categories').delete().eq('name', selectedName);
+  if (error){
+    alert('ลบไม่สำเร็จ: ' + error.message);
+    return;
+  }
+  loadCategories();
+}
 
 let allOwnersCache = [];
 
@@ -1050,12 +1099,21 @@ async function generateCode(){
   } else {
     qrEl.textContent = 'ITEM-' + currentCode;
   }
+  document.getElementById('onScreenCodeLabel').textContent = 'ITEM-' + currentCode;
   document.getElementById('qrWrap').style.display = 'flex';
   document.getElementById('genCodeBtn').style.display = 'none';
   document.getElementById('printBtn').style.display = 'block';
 }
 
   function doPrint(){
+    // สร้าง QR ชุดใหม่แยกต่างหากเฉพาะสำหรับพิมพ์ (อยู่นอก .app กันปัญหาหน้าเปล่าเพิ่ม)
+    const printQrHolder = document.getElementById('printQrHolder');
+    printQrHolder.innerHTML = '';
+    if (window.QRCode){
+      new QRCode(printQrHolder, { text: 'ITEM-' + currentCode, width:320, height:320, colorDark:'#1B413C', colorLight:'#ffffff' });
+    } else {
+      printQrHolder.textContent = 'ITEM-' + currentCode;
+    }
     document.getElementById('printCodeLabel').textContent = 'ITEM-' + currentCode;
     window.print();
     document.getElementById('printBtn').textContent = '✓ พิมพ์ป้ายแล้ว';
@@ -1141,5 +1199,10 @@ async function finishAdd(){
   for(let i=1;i<=4;i++) document.getElementById('stepPill'+i).classList.replace('current','done');
 }
 </script>
+<div id="printLabel" style="display:none;">
+  <div id="printQrHolder"></div>
+  <div id="printCodeLabel"></div>
+</div>
+
 </body>
 </html>
