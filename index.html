@@ -120,10 +120,15 @@
   .product-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:14px;}
   .product-card{
     background:var(--paper);border:2.5px solid var(--line);border-radius:16px;
-    overflow:hidden;cursor:pointer;transition:.15s;
+    overflow:hidden;cursor:pointer;transition:.15s;position:relative;
   }
   .product-card:hover{border-color:var(--teal);}
   .product-card.selected{border-color:var(--gold);box-shadow:0 0 0 3px var(--gold-soft);}
+  .product-delete-btn{
+    position:absolute;right:7px;top:7px;z-index:2;border:0;border-radius:9px;
+    width:32px;height:32px;background:rgba(255,255,255,.94);cursor:pointer;font-size:16px;
+    box-shadow:0 1px 4px rgba(0,0,0,.18);
+  }
   .product-photo{
     height:90px;background:linear-gradient(135deg,#EDE6D6,#DED2B0);
     display:flex;align-items:center;justify-content:center;font-size:32px;
@@ -244,7 +249,7 @@
     }
     body > * { display: none !important; }
     #printLabel {
-      display: block !important;
+      display: flex !important;
       position: fixed !important;
       left: 0 !important;
       top: 0 !important;
@@ -254,16 +259,19 @@
       min-height:30mm !important;
       max-width:55mm !important;
       max-height:30mm !important;
-      padding: 1.5mm 2mm;
-      text-align: center;
+      padding: 2mm;
+      align-items: center;
+      justify-content: flex-start;
+      gap: 2mm;
+      text-align: left;
       box-sizing: border-box;
       overflow: hidden !important;
       transform: none !important;
       zoom: 1 !important;
     }
-    #printLabel #printQrHolder { display: block !important; margin: 0 auto; width: 20mm; height:20mm; }
-    #printLabel #printQrHolder img, #printLabel #printQrHolder canvas { display: block !important; width: 20mm !important; height: 20mm !important; margin: 0 auto; }
-    #printLabel #printCodeLabel { display: block !important; font-size: 4mm; line-height:4mm; font-weight:800; margin-top:0.5mm; font-family:'IBM Plex Sans Thai', sans-serif; color:#1B413C; }
+    #printLabel #printQrHolder { display: block !important; flex:0 0 20mm; width:20mm; height:20mm; margin:0; }
+    #printLabel #printQrHolder img, #printLabel #printQrHolder canvas { display:block !important; width:20mm !important; height:20mm !important; margin:0; }
+    #printLabel #printCodeLabel { display:block !important; flex:1; font-size:4.5mm; line-height:1.1; font-weight:800; margin:0; font-family:'IBM Plex Sans Thai', sans-serif; color:#1B413C; overflow-wrap:anywhere; }
   }
 
   #customModalOverlay {
@@ -431,7 +439,6 @@
 
       <button class="confirm-btn" id="genCodeBtn" style="max-width:340px;margin:0 auto;display:block;" onclick="generateCode()">🏷️ สร้างรหัส + พิมพ์ QR</button>
       <button class="confirm-btn" id="printBtn" style="max-width:340px;margin:14px auto 0;display:none;background:var(--gold);box-shadow:0 5px 0 #9c7827;" onclick="doPrint()">🖨️ สั่งพิมพ์ป้าย QR</button>
-      <button class="confirm-btn" id="saveImageBtn" style="max-width:340px;margin:14px auto 0;display:none;background:var(--teal);box-shadow:0 5px 0 #0e4a43;" onclick="saveLabelImage()">🖼️ บันทึกป้ายเป็นรูปภาพ (แนะนำสำหรับมือถือ)</button>
       <button class="confirm-btn" id="nextToPhotoBtn" style="max-width:340px;margin:14px auto 0;display:none;" onclick="goStep(2)">➜ ต่อไป: ถ่ายรูปสินค้า</button>
 
       <div style="margin:18px auto 0;max-width:340px;padding:12px 14px;background:var(--bg);border-radius:12px;font-size:13px;color:var(--ink-soft);">
@@ -646,22 +653,43 @@ function renderProductGrid(list){
     card.setAttribute('data-item-id', item.id);
     card.onclick = () => toggleCartItem(item, card);
     card.innerHTML = `
+      <button type="button" class="product-delete-btn" title="ลบสินค้านี้">🗑️ ลบสินค้า</button>
       <div class="product-photo">${item.photo_url ? `<img src="${item.photo_url}" style="width:100%;height:100%;object-fit:cover;">` : getCategoryEmoji(item.name)}</div>
       <div class="product-info">
         <div class="pname">${item.name} (${item.item_code})</div>
         <div class="owner-chip"><span class="owner-dot" style="background:#C99A3E"></span>${item.owners ? item.owners.name : '-'}</div>
       </div>`;
+    card.querySelector('.product-delete-btn').onclick = (event) => {
+      event.stopPropagation();
+      deleteProduct(item);
+    };
     grid.appendChild(card);
   });
 }
 
 document.getElementById('searchInput').addEventListener('input', (e) => {
   const term = e.target.value.trim().toLowerCase();
+  const codeTerm = e.target.value.trim().toUpperCase();
   const filtered = allProductsCache.filter(item =>
-    item.name.toLowerCase().includes(term) || item.item_code.includes(term)
+    item.name.toLowerCase().includes(term) || String(item.item_code || '').toUpperCase().includes(codeTerm)
   );
   renderProductGrid(filtered);
 });
+
+async function deleteProduct(item){
+  const confirmed = await showConfirm('ลบสินค้า "' + item.name + '" รหัส ' + item.item_code + ' ออกจากระบบหรือไม่?\n\nการลบนี้จะหายจาก Supabase และกู้กลับไม่ได้', '🗑️');
+  if (!confirmed) return;
+  const { error } = await sb.from('items').delete().eq('id', item.id);
+  if (error){
+    await showAlert('ลบสินค้าไม่สำเร็จ: ' + error.message, '⚠️');
+    return;
+  }
+  cart = cart.filter(cartItem => cartItem.item.id !== item.id);
+  renderCart();
+  await loadProducts();
+  loadHomeStats();
+  await showAlert('ลบสินค้า ' + item.item_code + ' ออกจากระบบแล้ว', '✅');
+}
 
 // ===== สแกน QR ด้วยกล้อง =====
 let html5QrCode = null;
@@ -1230,60 +1258,7 @@ async function generateCode(){
   document.getElementById('qrWrap').style.display = 'flex';
   document.getElementById('genCodeBtn').style.display = 'none';
   document.getElementById('printBtn').style.display = 'block';
-  document.getElementById('saveImageBtn').style.display = 'block';
 }
-
-  // สร้าง "รูปฉลากทั้งใบ" อัตราส่วน 55 × 30 มม. สำหรับส่งเข้าแอป Paperang
-  // เมื่อแอปพิมพ์รูปนี้แบบพอดีกระดาษ 55 × 30 มม. สัดส่วน QR จะเท่ากับ 20 × 20 มม.
-  function saveLabelImage(){
-    if (!currentCode) return;
-    const qrSource = document.querySelector('#printQrHolder img, #printQrHolder canvas');
-    if (!qrSource) {
-      showAlert('กำลังเตรียม QR อยู่ กรุณารอสักครู่แล้วกดบันทึกอีกครั้ง', '⏳');
-      return;
-    }
-    const pixelsPerMm = 20;
-    const labelWidth = 55 * pixelsPerMm;
-    const labelHeight = 30 * pixelsPerMm;
-    const qrSize = 20 * pixelsPerMm;
-    const canvas = document.createElement('canvas');
-    canvas.width = labelWidth;
-    canvas.height = labelHeight;
-    const ctx = canvas.getContext('2d');
-    ctx.fillStyle = '#ffffff';
-    ctx.fillRect(0, 0, labelWidth, labelHeight);
-    ctx.imageSmoothingEnabled = false;
-    ctx.drawImage(qrSource, (labelWidth - qrSize) / 2, 24, qrSize, qrSize);
-    ctx.fillStyle = '#1B413C';
-    ctx.font = '800 54px Arial, sans-serif';
-    ctx.textAlign = 'center';
-    ctx.textBaseline = 'middle';
-    ctx.fillText('ITEM-' + currentCode, labelWidth / 2, 550);
-
-    const imageUrl = canvas.toDataURL('image/png');
-    const isAppleMobile = /iPad|iPhone|iPod/.test(navigator.userAgent) ||
-      (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
-
-    // Safari บน iPhone/iPad บล็อก a.download สำหรับรูปที่เว็บสร้างเอง
-    // จึงเปิดรูปในหน้าใหม่ ให้ผู้ใช้กด Share → Save Image หรือส่งเข้า Paperang
-    if (isAppleMobile) {
-      const preview = window.open('', '_blank');
-      if (!preview) {
-        showAlert('เบราว์เซอร์บล็อกหน้ารูป กรุณาอนุญาต Pop-up แล้วลองอีกครั้ง', '⚠️');
-        return;
-      }
-      preview.document.write('<!doctype html><html><head><meta name="viewport" content="width=device-width,initial-scale=1"><title>QR ' + currentCode + '</title></head><body style="margin:0;background:#eee;display:flex;min-height:100vh;align-items:center;justify-content:center"><img src="' + imageUrl + '" alt="QR ' + currentCode + '" style="width:100%;height:auto;display:block"></body></html>');
-      preview.document.close();
-      return;
-    }
-
-    const link = document.createElement('a');
-    link.href = imageUrl;
-    link.download = 'QR-' + currentCode + '-55x30mm.png';
-    document.body.appendChild(link);
-    link.click();
-    link.remove();
-  }
 
   function doPrint(){
     // QR สำหรับพิมพ์ถูกสร้างไว้ล่วงหน้าแล้วตอนกดสร้างรหัส (กันปัญหาบน iOS ที่ QR เรนเดอร์ไม่ทันตอนสั่งพิมพ์)
@@ -1311,7 +1286,6 @@ async function generateCode(){
   document.getElementById('qrWrap').style.display = 'none';
   document.getElementById('genCodeBtn').style.display = 'block';
   document.getElementById('printBtn').style.display = 'none';
-  document.getElementById('saveImageBtn').style.display = 'none';
   document.getElementById('printBtn').textContent = '🖨️ สั่งพิมพ์ป้าย QR';
   document.getElementById('printBtn').style.background = 'var(--gold)';
   document.getElementById('printBtn').style.boxShadow = '0 5px 0 #9c7827';
