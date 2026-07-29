@@ -653,7 +653,7 @@ function renderProductGrid(list){
     card.setAttribute('data-item-id', item.id);
     card.onclick = () => toggleCartItem(item, card);
     card.innerHTML = `
-      <button type="button" class="product-delete-btn" title="ลบสินค้านี้">🗑️ ลบสินค้า</button>
+      <button type="button" class="product-delete-btn" title="ลบสินค้านี้">🗑️</button>
       <div class="product-photo">${item.photo_url ? `<img src="${item.photo_url}" style="width:100%;height:100%;object-fit:cover;">` : getCategoryEmoji(item.name)}</div>
       <div class="product-info">
         <div class="pname">${item.name} (${item.item_code})</div>
