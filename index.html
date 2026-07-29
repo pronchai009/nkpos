@@ -239,39 +239,20 @@
   .tag-card.accent-green{border-left-color:var(--green);}
 
   @media print {
-    /* ฉลาก Paperang: กว้าง 55 มม. × สูง 30 มม. */
-    @page { size: 55mm 30mm; margin: 0; }
-    html, body {
-      width:55mm !important; min-width:55mm !important; max-width:55mm !important;
-      height:30mm !important; min-height:30mm !important; max-height:30mm !important;
-      margin:0 !important; padding:0 !important; overflow:hidden !important;
-      -webkit-print-color-adjust:exact !important; print-color-adjust:exact !important;
-    }
+    /* ใช้รูปแบบเดิม: ให้เครื่องพิมพ์/แอปจัดขนาดกระดาษเอง */
+    @page { margin: 0; size: auto; }
+    html, body { height: auto !important; margin: 0 !important; padding: 0 !important; }
     body > * { display: none !important; }
     #printLabel {
-      display: flex !important;
-      position: fixed !important;
-      left: 0 !important;
-      top: 0 !important;
-      width: 55mm !important;
-      height: 30mm !important;
-      min-width:55mm !important;
-      min-height:30mm !important;
-      max-width:55mm !important;
-      max-height:30mm !important;
-      padding: 2mm;
-      align-items: center;
-      justify-content: flex-start;
-      gap: 2mm;
-      text-align: left;
+      display: block !important;
+      width: 100%;
+      padding: 24px 16px;
+      text-align: center;
       box-sizing: border-box;
-      overflow: hidden !important;
-      transform: none !important;
-      zoom: 1 !important;
     }
-    #printLabel #printQrHolder { display: block !important; flex:0 0 20mm; width:20mm; height:20mm; margin:0; }
-    #printLabel #printQrHolder img, #printLabel #printQrHolder canvas { display:block !important; width:20mm !important; height:20mm !important; margin:0; }
-    #printLabel #printCodeLabel { display:block !important; flex:1; font-size:4.5mm; line-height:1.1; font-weight:800; margin:0; font-family:'IBM Plex Sans Thai', sans-serif; color:#1B413C; overflow-wrap:anywhere; }
+    #printLabel #printQrHolder { display: block !important; margin: 0 auto; width: 180px; }
+    #printLabel #printQrHolder img, #printLabel #printQrHolder canvas { display: block !important; width: 180px !important; height: 180px !important; margin: 0 auto; }
+    #printLabel #printCodeLabel { display: block !important; font-size: 22px; font-weight: 800; margin-top: 8px; font-family: 'IBM Plex Sans Thai', sans-serif; color: #1B413C; }
   }
 
   #customModalOverlay {
@@ -1236,15 +1217,15 @@ async function generateCode(){
   printQrHolder.innerHTML = '';
   if (window.QRCode){
     new QRCode(qrEl, { text: 'ITEM-' + currentCode, width:200, height:200, colorDark:'#1B413C', colorLight:'#ffffff' });
-    new QRCode(printQrHolder, { text: 'ITEM-' + currentCode, width:400, height:400, colorDark:'#1B413C', colorLight:'#ffffff' });
+    new QRCode(printQrHolder, { text: 'ITEM-' + currentCode, width:180, height:180, colorDark:'#1B413C', colorLight:'#ffffff' });
     // แปลง canvas เป็นรูปภาพนิ่ง (img) แทน — iOS มักไม่พิมพ์เนื้อหาที่วาดด้วย canvas ให้ถูกต้อง
     setTimeout(() => {
       const canvas = printQrHolder.querySelector('canvas');
       if (canvas) {
         const img = document.createElement('img');
         img.src = canvas.toDataURL('image/png');
-        img.style.width = '20mm';
-        img.style.height = '20mm';
+        img.style.width = '180px';
+        img.style.height = '180px';
         printQrHolder.innerHTML = '';
         printQrHolder.appendChild(img);
       }
