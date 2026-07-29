@@ -1260,8 +1260,25 @@ async function generateCode(){
     ctx.textBaseline = 'middle';
     ctx.fillText('ITEM-' + currentCode, labelWidth / 2, 550);
 
+    const imageUrl = canvas.toDataURL('image/png');
+    const isAppleMobile = /iPad|iPhone|iPod/.test(navigator.userAgent) ||
+      (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
+
+    // Safari บน iPhone/iPad บล็อก a.download สำหรับรูปที่เว็บสร้างเอง
+    // จึงเปิดรูปในหน้าใหม่ ให้ผู้ใช้กด Share → Save Image หรือส่งเข้า Paperang
+    if (isAppleMobile) {
+      const preview = window.open('', '_blank');
+      if (!preview) {
+        showAlert('เบราว์เซอร์บล็อกหน้ารูป กรุณาอนุญาต Pop-up แล้วลองอีกครั้ง', '⚠️');
+        return;
+      }
+      preview.document.write('<!doctype html><html><head><meta name="viewport" content="width=device-width,initial-scale=1"><title>QR ' + currentCode + '</title></head><body style="margin:0;background:#eee;display:flex;min-height:100vh;align-items:center;justify-content:center"><img src="' + imageUrl + '" alt="QR ' + currentCode + '" style="width:100%;height:auto;display:block"></body></html>');
+      preview.document.close();
+      return;
+    }
+
     const link = document.createElement('a');
-    link.href = canvas.toDataURL('image/png');
+    link.href = imageUrl;
     link.download = 'QR-' + currentCode + '-55x30mm.png';
     document.body.appendChild(link);
     link.click();
