@@ -261,8 +261,8 @@
       transform: none !important;
       zoom: 1 !important;
     }
-    #printLabel #printQrHolder { display: block !important; margin: 0 auto; width: 23mm; height:23mm; }
-    #printLabel #printQrHolder img, #printLabel #printQrHolder canvas { display: block !important; width: 23mm !important; height: 23mm !important; margin: 0 auto; }
+    #printLabel #printQrHolder { display: block !important; margin: 0 auto; width: 20mm; height:20mm; }
+    #printLabel #printQrHolder img, #printLabel #printQrHolder canvas { display: block !important; width: 20mm !important; height: 20mm !important; margin: 0 auto; }
     #printLabel #printCodeLabel { display: block !important; font-size: 4mm; line-height:4mm; font-weight:800; margin-top:0.5mm; font-family:'IBM Plex Sans Thai', sans-serif; color:#1B413C; }
   }
 
@@ -431,6 +431,7 @@
 
       <button class="confirm-btn" id="genCodeBtn" style="max-width:340px;margin:0 auto;display:block;" onclick="generateCode()">🏷️ สร้างรหัส + พิมพ์ QR</button>
       <button class="confirm-btn" id="printBtn" style="max-width:340px;margin:14px auto 0;display:none;background:var(--gold);box-shadow:0 5px 0 #9c7827;" onclick="doPrint()">🖨️ สั่งพิมพ์ป้าย QR</button>
+      <button class="confirm-btn" id="saveImageBtn" style="max-width:340px;margin:14px auto 0;display:none;background:var(--teal);box-shadow:0 5px 0 #0e4a43;" onclick="saveLabelImage()">🖼️ บันทึกป้ายเป็นรูปภาพ (แนะนำสำหรับมือถือ)</button>
       <button class="confirm-btn" id="nextToPhotoBtn" style="max-width:340px;margin:14px auto 0;display:none;" onclick="goStep(2)">➜ ต่อไป: ถ่ายรูปสินค้า</button>
 
       <div style="margin:18px auto 0;max-width:340px;padding:12px 14px;background:var(--bg);border-radius:12px;font-size:13px;color:var(--ink-soft);">
@@ -1207,15 +1208,15 @@ async function generateCode(){
   printQrHolder.innerHTML = '';
   if (window.QRCode){
     new QRCode(qrEl, { text: 'ITEM-' + currentCode, width:200, height:200, colorDark:'#1B413C', colorLight:'#ffffff' });
-    new QRCode(printQrHolder, { text: 'ITEM-' + currentCode, width:260, height:260, colorDark:'#1B413C', colorLight:'#ffffff' });
+    new QRCode(printQrHolder, { text: 'ITEM-' + currentCode, width:400, height:400, colorDark:'#1B413C', colorLight:'#ffffff' });
     // แปลง canvas เป็นรูปภาพนิ่ง (img) แทน — iOS มักไม่พิมพ์เนื้อหาที่วาดด้วย canvas ให้ถูกต้อง
     setTimeout(() => {
       const canvas = printQrHolder.querySelector('canvas');
       if (canvas) {
         const img = document.createElement('img');
         img.src = canvas.toDataURL('image/png');
-        img.style.width = '23mm';
-        img.style.height = '23mm';
+        img.style.width = '20mm';
+        img.style.height = '20mm';
         printQrHolder.innerHTML = '';
         printQrHolder.appendChild(img);
       }
@@ -1229,7 +1230,43 @@ async function generateCode(){
   document.getElementById('qrWrap').style.display = 'flex';
   document.getElementById('genCodeBtn').style.display = 'none';
   document.getElementById('printBtn').style.display = 'block';
+  document.getElementById('saveImageBtn').style.display = 'block';
 }
+
+  // สร้าง "รูปฉลากทั้งใบ" อัตราส่วน 55 × 30 มม. สำหรับส่งเข้าแอป Paperang
+  // เมื่อแอปพิมพ์รูปนี้แบบพอดีกระดาษ 55 × 30 มม. สัดส่วน QR จะเท่ากับ 20 × 20 มม.
+  function saveLabelImage(){
+    if (!currentCode) return;
+    const qrSource = document.querySelector('#printQrHolder img, #printQrHolder canvas');
+    if (!qrSource) {
+      showAlert('กำลังเตรียม QR อยู่ กรุณารอสักครู่แล้วกดบันทึกอีกครั้ง', '⏳');
+      return;
+    }
+    const pixelsPerMm = 20;
+    const labelWidth = 55 * pixelsPerMm;
+    const labelHeight = 30 * pixelsPerMm;
+    const qrSize = 20 * pixelsPerMm;
+    const canvas = document.createElement('canvas');
+    canvas.width = labelWidth;
+    canvas.height = labelHeight;
+    const ctx = canvas.getContext('2d');
+    ctx.fillStyle = '#ffffff';
+    ctx.fillRect(0, 0, labelWidth, labelHeight);
+    ctx.imageSmoothingEnabled = false;
+    ctx.drawImage(qrSource, (labelWidth - qrSize) / 2, 24, qrSize, qrSize);
+    ctx.fillStyle = '#1B413C';
+    ctx.font = '800 54px Arial, sans-serif';
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.fillText('ITEM-' + currentCode, labelWidth / 2, 550);
+
+    const link = document.createElement('a');
+    link.href = canvas.toDataURL('image/png');
+    link.download = 'QR-' + currentCode + '-55x30mm.png';
+    document.body.appendChild(link);
+    link.click();
+    link.remove();
+  }
 
   function doPrint(){
     // QR สำหรับพิมพ์ถูกสร้างไว้ล่วงหน้าแล้วตอนกดสร้างรหัส (กันปัญหาบน iOS ที่ QR เรนเดอร์ไม่ทันตอนสั่งพิมพ์)
@@ -1257,6 +1294,7 @@ async function generateCode(){
   document.getElementById('qrWrap').style.display = 'none';
   document.getElementById('genCodeBtn').style.display = 'block';
   document.getElementById('printBtn').style.display = 'none';
+  document.getElementById('saveImageBtn').style.display = 'none';
   document.getElementById('printBtn').textContent = '🖨️ สั่งพิมพ์ป้าย QR';
   document.getElementById('printBtn').style.background = 'var(--gold)';
   document.getElementById('printBtn').style.boxShadow = '0 5px 0 #9c7827';
