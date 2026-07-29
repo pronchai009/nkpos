@@ -234,19 +234,21 @@
   .tag-card.accent-green{border-left-color:var(--green);}
 
   @media print {
-    @page { margin: 0; size: auto; }
-    html, body { height: auto !important; margin: 0 !important; padding: 0 !important; }
+    /* ฉลาก Paperang: กว้าง 55 มม. × สูง 30 มม. */
+    @page { size: 55mm 30mm; margin: 0; }
+    html, body { width:55mm !important; height:30mm !important; margin:0 !important; padding:0 !important; overflow:hidden !important; }
     body > * { display: none !important; }
     #printLabel {
       display: block !important;
-      width: 100%;
-      padding: 60px 20px;
+      width: 55mm !important;
+      height: 30mm !important;
+      padding: 1.5mm 2mm;
       text-align: center;
       box-sizing: border-box;
     }
-    #printLabel #printQrHolder { display: block !important; margin: 0 auto; width: 320px; }
-    #printLabel #printQrHolder img, #printLabel #printQrHolder canvas { display: block !important; width: 320px !important; height: 320px !important; margin: 0 auto; }
-    #printLabel #printCodeLabel { display: block !important; font-size: 34px; font-weight: 800; margin-top: 18px; font-family: 'IBM Plex Sans Thai', sans-serif; color: #1B413C; }
+    #printLabel #printQrHolder { display: block !important; margin: 0 auto; width: 23mm; height:23mm; }
+    #printLabel #printQrHolder img, #printLabel #printQrHolder canvas { display: block !important; width: 23mm !important; height: 23mm !important; margin: 0 auto; }
+    #printLabel #printCodeLabel { display: block !important; font-size: 4mm; line-height:4mm; font-weight:800; margin-top:0.5mm; font-family:'IBM Plex Sans Thai', sans-serif; color:#1B413C; }
   }
 
   #customModalOverlay {
@@ -416,8 +418,13 @@
       <button class="confirm-btn" id="printBtn" style="max-width:340px;margin:14px auto 0;display:none;background:var(--gold);box-shadow:0 5px 0 #9c7827;" onclick="doPrint()">🖨️ สั่งพิมพ์ป้าย QR</button>
       <button class="confirm-btn" id="nextToPhotoBtn" style="max-width:340px;margin:14px auto 0;display:none;" onclick="goStep(2)">➜ ต่อไป: ถ่ายรูปสินค้า</button>
 
+      <div style="margin:18px auto 0;max-width:340px;padding:12px 14px;background:var(--bg);border-radius:12px;font-size:13px;color:var(--ink-soft);">
+        ล็อตปัจจุบัน: <b id="batchDisplay" style="color:var(--teal-dark);font-size:16px;">A</b> &nbsp;
+        <button type="button" onclick="changeBatch()" style="border:1.5px solid var(--teal);background:#fff;border-radius:8px;padding:5px 9px;color:var(--teal-dark);font:inherit;font-weight:700;cursor:pointer;">เปลี่ยนล็อต / เริ่มเลขใหม่</button>
+      </div>
+
       <div style="margin-top:22px;font-size:13px;color:var(--ink-soft);border-top:1px solid var(--line);padding-top:16px;">
-        เลขรันอัตโนมัติทีละ 1 เริ่มจาก <b>0000</b> ไม่มีวันซ้ำ ไม่ต้องคิดเอง ไม่ต้องเขียนมือ
+        เลขรันอัตโนมัติทีละ 1 เช่น <b>A0000, A0001</b> เมื่อขึ้นล็อตใหม่เปลี่ยนเป็น <b>B0000</b>
       </div>
     </div>
 
@@ -1122,23 +1129,60 @@ async function uploadItemPhoto(file, itemCode) {
 }
   
   /* ===== ADD PRODUCT: running code + QR generation flow ===== */
-  // this counter simulates the back-end auto-increment. In the real system,
-  // the next number is looked up from the database, not from the browser.
-  let itemCounter = 186; // สมมติร้านนี้มีสินค้าสะสมแล้ว 186 ชิ้น ตัวถัดไปคือ 0186
   let currentCode = null;
+  let activeBatch = localStorage.getItem('posActiveBatch') || 'A';
 
   function pad4(n){ return String(n).padStart(4,'0'); }
+  function updateBatchDisplay(){ document.getElementById('batchDisplay').textContent = activeBatch; }
+
+  // เลขที่ออกแล้วจะจำไว้ในอุปกรณ์นี้ทันที แม้ยังกรอกสินค้าชิ้นนั้นไม่เสร็จ
+  // จึงไม่พิมพ์รหัสเดิมซ้ำเมื่อกดสร้างป้ายใหม่หรือรีเฟรชหน้าเว็บ
+  async function getNextCodeForBatch(){
+    const { data, error } = await sb.from('items').select('item_code').like('item_code', activeBatch + '%');
+    if (error) throw error;
+    // activeBatch รับได้เฉพาะ A-Z และ 0-9 จึงต่อเข้ากับรูปแบบรหัสได้โดยตรง
+    const matcher = new RegExp('^' + activeBatch + '(\\d{4})$');
+    const highestInDatabase = (data || []).reduce((highest, item) => {
+      const match = String(item.item_code || '').match(matcher);
+      return match ? Math.max(highest, Number(match[1])) : highest;
+    }, -1);
+    const storageKey = 'posLastIssued_' + activeBatch;
+    const lastIssuedHere = Number(localStorage.getItem(storageKey));
+    const nextNumber = Math.max(highestInDatabase + 1, Number.isFinite(lastIssuedHere) ? lastIssuedHere + 1 : 0);
+    if (nextNumber > 9999) throw new Error('เลขในล็อตนี้ครบถึง 9999 แล้ว');
+    localStorage.setItem(storageKey, String(nextNumber));
+    return activeBatch + pad4(nextNumber);
+  }
+
+  async function changeBatch(){
+    if (currentCode && !(await showConfirm('เปลี่ยนล็อตตอนนี้ได้ แต่รหัส ' + currentCode + ' ที่เพิ่งสร้างจะถูกข้ามไป ต้องการทำต่อหรือไม่?', '⚠️'))) return;
+    const entered = window.prompt('พิมพ์ชื่อล็อตใหม่ (ใช้ A, B, C หรือ A1 ได้):', activeBatch);
+    if (entered === null) return;
+    const nextBatch = entered.trim().toUpperCase();
+    if (!/^[A-Z0-9]{1,8}$/.test(nextBatch)) {
+      await showAlert('ชื่อล็อตใช้ได้เฉพาะ A-Z และ 0-9 ความยาวไม่เกิน 8 ตัว', '⚠️');
+      return;
+    }
+    activeBatch = nextBatch;
+    localStorage.setItem('posActiveBatch', activeBatch);
+    currentCode = null;
+    updateBatchDisplay();
+    resetAdd();
+    await showAlert('เปลี่ยนเป็นล็อต ' + activeBatch + ' แล้ว ป้ายใบแรกจะเป็น ' + activeBatch + '0000', '✅');
+  }
+
+  document.addEventListener('DOMContentLoaded', updateBatchDisplay);
 
   let currentOwnerId = null; // จะตั้งค่าตอนเลือกเจ้าของสินค้าในขั้นตอนที่ 4 ของฟอร์ม
 
 async function generateCode(){
-  const { data, error } = await sb.rpc('get_next_item_code');
-  if (error) {
+  try {
+    currentCode = await getNextCodeForBatch();
+  } catch (error) {
     console.error('ออกรหัสไม่สำเร็จ:', error.message);
-    await showAlert('เกิดข้อผิดพลาด ลองใหม่อีกครั้ง');
+    await showAlert('ออกรหัสไม่สำเร็จ: ' + (error.message || 'ลองใหม่อีกครั้ง'));
     return;
   }
-  currentCode = data;
   document.getElementById('codeDisplay').textContent = currentCode.split('').join(' ');
   document.querySelectorAll('.codeReminder').forEach(el=> el.textContent = currentCode);
 
@@ -1148,15 +1192,15 @@ async function generateCode(){
   printQrHolder.innerHTML = '';
   if (window.QRCode){
     new QRCode(qrEl, { text: 'ITEM-' + currentCode, width:200, height:200, colorDark:'#1B413C', colorLight:'#ffffff' });
-    new QRCode(printQrHolder, { text: 'ITEM-' + currentCode, width:320, height:320, colorDark:'#1B413C', colorLight:'#ffffff' });
+    new QRCode(printQrHolder, { text: 'ITEM-' + currentCode, width:260, height:260, colorDark:'#1B413C', colorLight:'#ffffff' });
     // แปลง canvas เป็นรูปภาพนิ่ง (img) แทน — iOS มักไม่พิมพ์เนื้อหาที่วาดด้วย canvas ให้ถูกต้อง
     setTimeout(() => {
       const canvas = printQrHolder.querySelector('canvas');
       if (canvas) {
         const img = document.createElement('img');
         img.src = canvas.toDataURL('image/png');
-        img.style.width = '320px';
-        img.style.height = '320px';
+        img.style.width = '23mm';
+        img.style.height = '23mm';
         printQrHolder.innerHTML = '';
         printQrHolder.appendChild(img);
       }
