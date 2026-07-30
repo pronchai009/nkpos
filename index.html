@@ -1246,13 +1246,66 @@ async function generateCode(){
   document.getElementById('printBtn').style.display = 'block';
 }
 
-  function doPrint(){
-    // QR สำหรับพิมพ์ถูกสร้างไว้ล่วงหน้าแล้วตอนกดสร้างรหัส (กันปัญหาบน iOS ที่ QR เรนเดอร์ไม่ทันตอนสั่งพิมพ์)
-    window.print();
+  // วาดป้าย QR ทั้งใบ (QR + รหัส) ลงบน canvas เดียว ขนาดจริง 55x30mm ที่ 300dpi
+  // เพื่อเอาไปแชร์เป็นรูปภาพตรงๆ แทนการสั่งพิมพ์แบบเดิม
+  async function buildLabelBlob(code){
+    const DPI = 300;
+    const mm = v => Math.round(v * DPI / 25.4);
+    const W = mm(55), H = mm(30);
+    const canvas = document.createElement('canvas');
+    canvas.width = W; canvas.height = H;
+    const ctx = canvas.getContext('2d');
+    ctx.fillStyle = '#ffffff';
+    ctx.fillRect(0, 0, W, H);
+
+    const qrSize = mm(20);
+    const tempHolder = document.createElement('div');
+    tempHolder.style.position = 'fixed';
+    tempHolder.style.left = '-9999px';
+    document.body.appendChild(tempHolder);
+    new QRCode(tempHolder, { text: 'ITEM-' + code, width: qrSize, height: qrSize, colorDark: '#1B413C', colorLight: '#ffffff' });
+    await new Promise(resolve => setTimeout(resolve, 80)); // รอ canvas ของ QR วาดเสร็จก่อนค่อยคัดลอก
+    const qrCanvas = tempHolder.querySelector('canvas');
+    const qrX = Math.round((W - qrSize) / 2);
+    const qrY = mm(2);
+    if (qrCanvas) ctx.drawImage(qrCanvas, qrX, qrY, qrSize, qrSize);
+    document.body.removeChild(tempHolder);
+
+    ctx.fillStyle = '#1B413C';
+    ctx.font = '700 ' + mm(3.2) + 'px "IBM Plex Sans Thai", sans-serif';
+    ctx.textAlign = 'center';
+    ctx.fillText('ITEM-' + code, W / 2, qrY + qrSize + mm(5.5));
+
+    return await new Promise(resolve => canvas.toBlob(resolve, 'image/png'));
+  }
+
+  function markPrinted(){
     document.getElementById('printBtn').textContent = '✓ พิมพ์ป้ายแล้ว';
     document.getElementById('printBtn').style.background = 'var(--green)';
     document.getElementById('printBtn').style.boxShadow = '0 5px 0 #3d6b48';
     document.getElementById('nextToPhotoBtn').style.display = 'block';
+  }
+
+  async function doPrint(){
+    // ถ้ามือถือรองรับการแชร์ไฟล์ (iOS Safari รองรับตั้งแต่ iOS 15) ให้แชร์เป็นรูปภาพตรงๆ
+    // เพราะการสั่ง window.print() บน iOS จะโดนระบบพิมพ์ของ Safari แปะ URL/วันที่/เลขหน้าเป็นข้อความเพิ่มท้ายหน้าให้เองอัตโนมัติ แก้ด้วย CSS ไม่ได้
+    if (currentCode && navigator.canShare && window.File) {
+      try {
+        const blob = await buildLabelBlob(currentCode);
+        const file = new File([blob], 'ITEM-' + currentCode + '.png', { type: 'image/png' });
+        if (navigator.canShare({ files: [file] })) {
+          await navigator.share({ files: [file], title: 'ITEM-' + currentCode });
+          markPrinted();
+          return;
+        }
+      } catch (err) {
+        if (err && err.name === 'AbortError') return; // ผู้ใช้กดปิดหน้าต่างแชร์เอง ไม่ต้อง fallback ไปสั่งพิมพ์
+        console.error('แชร์รูปไม่สำเร็จ, จะลองสั่งพิมพ์แทน:', err.message);
+      }
+    }
+    // อุปกรณ์ที่แชร์ไฟล์ไม่ได้ (เช่นคอมที่ต่อปริ้นเตอร์จริง) ใช้วิธีสั่งพิมพ์แบบเดิม
+    window.print();
+    markPrinted();
   }
 
   function goStep(n){
