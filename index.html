@@ -1160,6 +1160,9 @@ async function uploadItemPhoto(file, itemCode) {
   
   /* ===== ADD PRODUCT: running code + QR generation flow ===== */
   let currentCode = null;
+  let currentLabelBlob = null; // รูปป้ายที่เตรียมไว้ล่วงหน้า ให้ navigator.share() เรียกได้ทันทีตอนกดปุ่ม (ไม่งั้น iOS จะตัดสิทธิ์แสดงแอปในหน้าต่างแชร์)
+  // iPadOS รายงาน platform เป็น 'MacIntel' เหมือน Mac ปกติ จึงต้องเช็ค touch points เพิ่มเพื่อแยกจาก Mac จริง
+  const isIOS = /iP(hone|od|ad)/.test(navigator.userAgent) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
   let activeBatch = localStorage.getItem('posActiveBatch') || 'A';
 
   function pad4(n){ return String(n).padStart(4,'0'); }
@@ -1244,6 +1247,14 @@ async function generateCode(){
   document.getElementById('qrWrap').style.display = 'flex';
   document.getElementById('genCodeBtn').style.display = 'none';
   document.getElementById('printBtn').style.display = 'block';
+
+  currentLabelBlob = null;
+  if (isIOS) {
+    // เตรียมรูปป้ายไว้ล่วงหน้าตั้งแต่ตอนนี้ (ผู้ใช้ยังต้องถ่ายรูป/กรอกข้อมูลอีกพัก) พอกดปุ่มพิมพ์จริงจะได้เรียก share ได้ทันทีไม่ต้องรอ
+    buildLabelBlob(currentCode)
+      .then(blob => { currentLabelBlob = blob; })
+      .catch(err => console.error('เตรียมรูปป้ายล่วงหน้าไม่สำเร็จ:', err.message));
+  }
 }
 
   // วาดป้าย QR ทั้งใบ (QR + รหัส) ลงบน canvas เดียว ขนาดจริง 55x30mm ที่ 300dpi
@@ -1287,11 +1298,14 @@ async function generateCode(){
   }
 
   async function doPrint(){
-    // ถ้ามือถือรองรับการแชร์ไฟล์ (iOS Safari รองรับตั้งแต่ iOS 15) ให้แชร์เป็นรูปภาพตรงๆ
-    // เพราะการสั่ง window.print() บน iOS จะโดนระบบพิมพ์ของ Safari แปะ URL/วันที่/เลขหน้าเป็นข้อความเพิ่มท้ายหน้าให้เองอัตโนมัติ แก้ด้วย CSS ไม่ได้
-    if (currentCode && navigator.canShare && window.File) {
+    // เฉพาะ iOS เท่านั้นที่แชร์เป็นรูปภาพแทนการสั่งพิมพ์ (เพราะ Paperang ไม่รองรับ AirPrint และ window.print()
+    // บน iOS จะโดนระบบพิมพ์ของ Safari แปะ URL/วันที่/เลขหน้าเป็นข้อความเพิ่มท้ายหน้าให้เองอัตโนมัติ แก้ด้วย CSS ไม่ได้)
+    // คอม/Windows/Android ยังใช้ window.print() ไปที่ปริ้นเตอร์จริงตามปกติ
+    if (isIOS && currentCode && navigator.canShare && window.File) {
       try {
-        const blob = await buildLabelBlob(currentCode);
+        // ใช้รูปที่เตรียมไว้ล่วงหน้าจาก generateCode() ถ้ามี เพื่อให้ navigator.share() ทำงานใกล้เคียงจังหวะที่กดปุ่มที่สุด
+        // (ถ้าต้องมา await buildLabelBlob ตรงนี้ก่อน อาจกินเวลาจน iOS มองว่าไม่ได้มาจาก user gesture โดยตรง แล้วตัดแอปอย่าง Paperang ออกจากหน้าต่างแชร์ เหลือแต่ตัวเลือก "บันทึกลงในรูปภาพ")
+        const blob = currentLabelBlob || await buildLabelBlob(currentCode);
         const file = new File([blob], 'ITEM-' + currentCode + '.png', { type: 'image/png' });
         if (navigator.canShare({ files: [file] })) {
           await navigator.share({ files: [file], title: 'ITEM-' + currentCode });
@@ -1303,7 +1317,6 @@ async function generateCode(){
         console.error('แชร์รูปไม่สำเร็จ, จะลองสั่งพิมพ์แทน:', err.message);
       }
     }
-    // อุปกรณ์ที่แชร์ไฟล์ไม่ได้ (เช่นคอมที่ต่อปริ้นเตอร์จริง) ใช้วิธีสั่งพิมพ์แบบเดิม
     window.print();
     markPrinted();
   }
