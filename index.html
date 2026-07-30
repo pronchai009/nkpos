@@ -239,20 +239,25 @@
   .tag-card.accent-green{border-left-color:var(--green);}
 
   @media print {
-    /* ใช้รูปแบบเดิม: ให้เครื่องพิมพ์/แอปจัดขนาดกระดาษเอง */
-    @page { margin: 0; size: auto; }
+    /* กำหนดขนาดหน้ากระดาษตายตัวเท่าป้ายจริง 55x30mm
+       เดิมใช้ size:auto ซึ่งบน iOS (ที่ไม่มีเครื่องพิมพ์ AirPrint จริงให้ Safari อ้างอิง)
+       มักถูกตีความเป็นกระดาษ A4/Letter เต็มแผ่น แล้ว QR เล็กๆ ไปอยู่มุมหนึ่งของหน้าใหญ่
+       พอแชร์ PDF นั้นไปแอป Paperang ตัวแอปจะบีบ/ครอปให้พอดีม้วนกระดาษ ทำให้ภาพเพี้ยน */
+    @page { margin: 0; size: 55mm 30mm; }
     html, body { height: auto !important; margin: 0 !important; padding: 0 !important; }
     body > * { display: none !important; }
     #printLabel {
       display: block !important;
-      width: 100%;
-      padding: 24px 16px;
+      width: 55mm;
+      height: 30mm;
+      padding: 1.5mm;
       text-align: center;
       box-sizing: border-box;
+      overflow: hidden;
     }
-    #printLabel #printQrHolder { display: block !important; margin: 0 auto; width: 180px; }
-    #printLabel #printQrHolder img, #printLabel #printQrHolder canvas { display: block !important; width: 180px !important; height: 180px !important; margin: 0 auto; }
-    #printLabel #printCodeLabel { display: block !important; font-size: 22px; font-weight: 800; margin-top: 8px; font-family: 'IBM Plex Sans Thai', sans-serif; color: #1B413C; }
+    #printLabel #printQrHolder { display: block !important; margin: 0 auto; width: 20mm; }
+    #printLabel #printQrHolder img, #printLabel #printQrHolder canvas { display: block !important; width: 20mm !important; height: 20mm !important; margin: 0 auto; }
+    #printLabel #printCodeLabel { display: block !important; font-size: 8pt; font-weight: 800; margin-top: 1mm; font-family: 'IBM Plex Sans Thai', sans-serif; color: #1B413C; }
   }
 
   #customModalOverlay {
@@ -1217,7 +1222,7 @@ async function generateCode(){
   printQrHolder.innerHTML = '';
   if (window.QRCode){
     new QRCode(qrEl, { text: 'ITEM-' + currentCode, width:200, height:200, colorDark:'#1B413C', colorLight:'#ffffff' });
-    new QRCode(printQrHolder, { text: 'ITEM-' + currentCode, width:180, height:180, colorDark:'#1B413C', colorLight:'#ffffff' });
+    new QRCode(printQrHolder, { text: 'ITEM-' + currentCode, width:300, height:300, colorDark:'#1B413C', colorLight:'#ffffff' });
     // แปลง canvas เป็นรูปภาพนิ่ง (img) แทน — iOS มักไม่พิมพ์เนื้อหาที่วาดด้วย canvas ให้ถูกต้อง
     setTimeout(() => {
       const canvas = printQrHolder.querySelector('canvas');
