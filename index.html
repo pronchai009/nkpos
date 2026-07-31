@@ -239,25 +239,20 @@
   .tag-card.accent-green{border-left-color:var(--green);}
 
   @media print {
-    /* กำหนดขนาดหน้ากระดาษตายตัวเท่าป้ายจริง 55x30mm
-       เดิมใช้ size:auto ซึ่งบน iOS (ที่ไม่มีเครื่องพิมพ์ AirPrint จริงให้ Safari อ้างอิง)
-       มักถูกตีความเป็นกระดาษ A4/Letter เต็มแผ่น แล้ว QR เล็กๆ ไปอยู่มุมหนึ่งของหน้าใหญ่
-       พอแชร์ PDF นั้นไปแอป Paperang ตัวแอปจะบีบ/ครอปให้พอดีม้วนกระดาษ ทำให้ภาพเพี้ยน */
-    @page { margin: 0; size: 55mm 30mm; }
+    /* กลับไปใช้แบบเดิมที่พิมพ์ผ่าน Paperang ได้จริง (เปลืองกระดาษกว่า แต่ใช้งานได้จริง) */
+    @page { margin: 0; size: auto; }
     html, body { height: auto !important; margin: 0 !important; padding: 0 !important; }
     body > * { display: none !important; }
     #printLabel {
       display: block !important;
-      width: 55mm;
-      height: 30mm;
-      padding: 1.5mm;
+      width: 100%;
+      padding: 60px 20px;
       text-align: center;
       box-sizing: border-box;
-      overflow: hidden;
     }
-    #printLabel #printQrHolder { display: block !important; margin: 0 auto; width: 20mm; }
-    #printLabel #printQrHolder img, #printLabel #printQrHolder canvas { display: block !important; width: 20mm !important; height: 20mm !important; margin: 0 auto; }
-    #printLabel #printCodeLabel { display: block !important; font-size: 8pt; font-weight: 800; margin-top: 1mm; font-family: 'IBM Plex Sans Thai', sans-serif; color: #1B413C; }
+    #printLabel #printQrHolder { display: block !important; margin: 0 auto; width: 320px; }
+    #printLabel #printQrHolder img, #printLabel #printQrHolder canvas { display: block !important; width: 320px !important; height: 320px !important; margin: 0 auto; }
+    #printLabel #printCodeLabel { display: block !important; font-size: 34px; font-weight: 800; margin-top: 18px; font-family: 'IBM Plex Sans Thai', sans-serif; color: #1B413C; }
   }
 
   #customModalOverlay {
@@ -1160,30 +1155,44 @@ async function uploadItemPhoto(file, itemCode) {
   
   /* ===== ADD PRODUCT: running code + QR generation flow ===== */
   let currentCode = null;
-  let currentLabelBlob = null; // รูปป้ายที่เตรียมไว้ล่วงหน้า ให้ navigator.share() เรียกได้ทันทีตอนกดปุ่ม (ไม่งั้น iOS จะตัดสิทธิ์แสดงแอปในหน้าต่างแชร์)
-  // iPadOS รายงาน platform เป็น 'MacIntel' เหมือน Mac ปกติ จึงต้องเช็ค touch points เพิ่มเพื่อแยกจาก Mac จริง
-  const isIOS = /iP(hone|od|ad)/.test(navigator.userAgent) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
   let activeBatch = localStorage.getItem('posActiveBatch') || 'A';
 
   function pad4(n){ return String(n).padStart(4,'0'); }
   function updateBatchDisplay(){ document.getElementById('batchDisplay').textContent = activeBatch; }
 
-  // เลขที่ออกแล้วจะจำไว้ในอุปกรณ์นี้ทันที แม้ยังกรอกสินค้าชิ้นนั้นไม่เสร็จ
-  // จึงไม่พิมพ์รหัสเดิมซ้ำเมื่อกดสร้างป้ายใหม่หรือรีเฟรชหน้าเว็บ
+  // เลขที่ "ออกแล้วแต่ยังไม่บันทึก" จะถูกจำไว้ในอุปกรณ์นี้ (เผื่อรีเฟรชหน้าเว็บก่อนกดบันทึกสินค้า)
+  // เพื่อไม่ให้ออกเลขซ้ำ ส่วนเลขที่เคยมีอยู่แต่ถูกลบออกจาก Supabase แล้ว จะถูกดึงกลับมาใช้ใหม่ได้เสมอ
+  function getPendingCodes(batch){
+    try { return new Set(JSON.parse(localStorage.getItem('posPendingCodes_' + batch)) || []); }
+    catch { return new Set(); }
+  }
+  function savePendingCodes(batch, set){
+    localStorage.setItem('posPendingCodes_' + batch, JSON.stringify([...set]));
+  }
+  function clearPendingCode(batch, number){
+    const pending = getPendingCodes(batch);
+    pending.delete(number);
+    savePendingCodes(batch, pending);
+  }
+
   async function getNextCodeForBatch(){
     const { data, error } = await sb.from('items').select('item_code').like('item_code', activeBatch + '%');
     if (error) throw error;
     // activeBatch รับได้เฉพาะ A-Z และ 0-9 จึงต่อเข้ากับรูปแบบรหัสได้โดยตรง
     const matcher = new RegExp('^' + activeBatch + '(\\d{4})$');
-    const highestInDatabase = (data || []).reduce((highest, item) => {
+    const usedInDatabase = new Set();
+    (data || []).forEach(item => {
       const match = String(item.item_code || '').match(matcher);
-      return match ? Math.max(highest, Number(match[1])) : highest;
-    }, -1);
-    const storageKey = 'posLastIssued_' + activeBatch;
-    const lastIssuedHere = Number(localStorage.getItem(storageKey));
-    const nextNumber = Math.max(highestInDatabase + 1, Number.isFinite(lastIssuedHere) ? lastIssuedHere + 1 : 0);
+      if (match) usedInDatabase.add(Number(match[1]));
+    });
+    const pending = getPendingCodes(activeBatch);
+    // หาเลขว่างที่น้อยที่สุดที่ไม่ชนทั้งในฐานข้อมูลและเลขที่ออกไปแล้วแต่ยังไม่บันทึก
+    // ถ้าเลขไหนเคยถูกลบออกจาก Supabase มันจะว่างและถูกดึงกลับมาใช้ตรงนี้เอง
+    let nextNumber = 0;
+    while (usedInDatabase.has(nextNumber) || pending.has(nextNumber)) nextNumber++;
     if (nextNumber > 9999) throw new Error('เลขในล็อตนี้ครบถึง 9999 แล้ว');
-    localStorage.setItem(storageKey, String(nextNumber));
+    pending.add(nextNumber);
+    savePendingCodes(activeBatch, pending);
     return activeBatch + pad4(nextNumber);
   }
 
@@ -1225,15 +1234,15 @@ async function generateCode(){
   printQrHolder.innerHTML = '';
   if (window.QRCode){
     new QRCode(qrEl, { text: 'ITEM-' + currentCode, width:200, height:200, colorDark:'#1B413C', colorLight:'#ffffff' });
-    new QRCode(printQrHolder, { text: 'ITEM-' + currentCode, width:300, height:300, colorDark:'#1B413C', colorLight:'#ffffff' });
+    new QRCode(printQrHolder, { text: 'ITEM-' + currentCode, width:320, height:320, colorDark:'#1B413C', colorLight:'#ffffff' });
     // แปลง canvas เป็นรูปภาพนิ่ง (img) แทน — iOS มักไม่พิมพ์เนื้อหาที่วาดด้วย canvas ให้ถูกต้อง
     setTimeout(() => {
       const canvas = printQrHolder.querySelector('canvas');
       if (canvas) {
         const img = document.createElement('img');
         img.src = canvas.toDataURL('image/png');
-        img.style.width = '180px';
-        img.style.height = '180px';
+        img.style.width = '320px';
+        img.style.height = '320px';
         printQrHolder.innerHTML = '';
         printQrHolder.appendChild(img);
       }
@@ -1247,78 +1256,15 @@ async function generateCode(){
   document.getElementById('qrWrap').style.display = 'flex';
   document.getElementById('genCodeBtn').style.display = 'none';
   document.getElementById('printBtn').style.display = 'block';
-
-  currentLabelBlob = null;
-  if (isIOS) {
-    // เตรียมรูปป้ายไว้ล่วงหน้าตั้งแต่ตอนนี้ (ผู้ใช้ยังต้องถ่ายรูป/กรอกข้อมูลอีกพัก) พอกดปุ่มพิมพ์จริงจะได้เรียก share ได้ทันทีไม่ต้องรอ
-    buildLabelBlob(currentCode)
-      .then(blob => { currentLabelBlob = blob; })
-      .catch(err => console.error('เตรียมรูปป้ายล่วงหน้าไม่สำเร็จ:', err.message));
-  }
 }
 
-  // วาดป้าย QR ทั้งใบ (QR + รหัส) ลงบน canvas เดียว ขนาดจริง 55x30mm ที่ 300dpi
-  // เพื่อเอาไปแชร์เป็นรูปภาพตรงๆ แทนการสั่งพิมพ์แบบเดิม
-  async function buildLabelBlob(code){
-    const DPI = 300;
-    const mm = v => Math.round(v * DPI / 25.4);
-    const W = mm(55), H = mm(30);
-    const canvas = document.createElement('canvas');
-    canvas.width = W; canvas.height = H;
-    const ctx = canvas.getContext('2d');
-    ctx.fillStyle = '#ffffff';
-    ctx.fillRect(0, 0, W, H);
-
-    const qrSize = mm(20);
-    const tempHolder = document.createElement('div');
-    tempHolder.style.position = 'fixed';
-    tempHolder.style.left = '-9999px';
-    document.body.appendChild(tempHolder);
-    new QRCode(tempHolder, { text: 'ITEM-' + code, width: qrSize, height: qrSize, colorDark: '#1B413C', colorLight: '#ffffff' });
-    await new Promise(resolve => setTimeout(resolve, 80)); // รอ canvas ของ QR วาดเสร็จก่อนค่อยคัดลอก
-    const qrCanvas = tempHolder.querySelector('canvas');
-    const qrX = Math.round((W - qrSize) / 2);
-    const qrY = mm(2);
-    if (qrCanvas) ctx.drawImage(qrCanvas, qrX, qrY, qrSize, qrSize);
-    document.body.removeChild(tempHolder);
-
-    ctx.fillStyle = '#1B413C';
-    ctx.font = '700 ' + mm(3.2) + 'px "IBM Plex Sans Thai", sans-serif';
-    ctx.textAlign = 'center';
-    ctx.fillText('ITEM-' + code, W / 2, qrY + qrSize + mm(5.5));
-
-    return await new Promise(resolve => canvas.toBlob(resolve, 'image/png'));
-  }
-
-  function markPrinted(){
+  function doPrint(){
+    // QR สำหรับพิมพ์ถูกสร้างไว้ล่วงหน้าแล้วตอนกดสร้างรหัส (กันปัญหาบน iOS ที่ QR เรนเดอร์ไม่ทันตอนสั่งพิมพ์)
+    window.print();
     document.getElementById('printBtn').textContent = '✓ พิมพ์ป้ายแล้ว';
     document.getElementById('printBtn').style.background = 'var(--green)';
     document.getElementById('printBtn').style.boxShadow = '0 5px 0 #3d6b48';
     document.getElementById('nextToPhotoBtn').style.display = 'block';
-  }
-
-  async function doPrint(){
-    // เฉพาะ iOS เท่านั้นที่แชร์เป็นรูปภาพแทนการสั่งพิมพ์ (เพราะ Paperang ไม่รองรับ AirPrint และ window.print()
-    // บน iOS จะโดนระบบพิมพ์ของ Safari แปะ URL/วันที่/เลขหน้าเป็นข้อความเพิ่มท้ายหน้าให้เองอัตโนมัติ แก้ด้วย CSS ไม่ได้)
-    // คอม/Windows/Android ยังใช้ window.print() ไปที่ปริ้นเตอร์จริงตามปกติ
-    if (isIOS && currentCode && navigator.canShare && window.File) {
-      try {
-        // ใช้รูปที่เตรียมไว้ล่วงหน้าจาก generateCode() ถ้ามี เพื่อให้ navigator.share() ทำงานใกล้เคียงจังหวะที่กดปุ่มที่สุด
-        // (ถ้าต้องมา await buildLabelBlob ตรงนี้ก่อน อาจกินเวลาจน iOS มองว่าไม่ได้มาจาก user gesture โดยตรง แล้วตัดแอปอย่าง Paperang ออกจากหน้าต่างแชร์ เหลือแต่ตัวเลือก "บันทึกลงในรูปภาพ")
-        const blob = currentLabelBlob || await buildLabelBlob(currentCode);
-        const file = new File([blob], 'ITEM-' + currentCode + '.png', { type: 'image/png' });
-        if (navigator.canShare({ files: [file] })) {
-          await navigator.share({ files: [file], title: 'ITEM-' + currentCode });
-          markPrinted();
-          return;
-        }
-      } catch (err) {
-        if (err && err.name === 'AbortError') return; // ผู้ใช้กดปิดหน้าต่างแชร์เอง ไม่ต้อง fallback ไปสั่งพิมพ์
-        console.error('แชร์รูปไม่สำเร็จ, จะลองสั่งพิมพ์แทน:', err.message);
-      }
-    }
-    window.print();
-    markPrinted();
   }
 
   function goStep(n){
@@ -1392,6 +1338,9 @@ async function finishAdd(){
     await showAlert('เกิดข้อผิดพลาด: ' + error.message);
     return;
   }
+
+  const savedMatch = String(currentCode).match(new RegExp('^' + activeBatch + '(\\d{4})$'));
+  if (savedMatch) clearPendingCode(activeBatch, Number(savedMatch[1]));
 
   ['codeStepCard','photoStepCard','detailStepCard','ownerStepCard'].forEach(id=> document.getElementById(id).style.display='none');
   document.getElementById('doneStepCard').style.display='block';
