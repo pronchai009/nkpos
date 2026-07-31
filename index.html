@@ -120,15 +120,10 @@
   .product-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:14px;}
   .product-card{
     background:var(--paper);border:2.5px solid var(--line);border-radius:16px;
-    overflow:hidden;cursor:pointer;transition:.15s;position:relative;
+    overflow:hidden;cursor:pointer;transition:.15s;
   }
   .product-card:hover{border-color:var(--teal);}
   .product-card.selected{border-color:var(--gold);box-shadow:0 0 0 3px var(--gold-soft);}
-  .product-delete-btn{
-    position:absolute;right:7px;top:7px;z-index:2;border:0;border-radius:9px;
-    width:32px;height:32px;background:rgba(255,255,255,.94);cursor:pointer;font-size:16px;
-    box-shadow:0 1px 4px rgba(0,0,0,.18);
-  }
   .product-photo{
     height:90px;background:linear-gradient(135deg,#EDE6D6,#DED2B0);
     display:flex;align-items:center;justify-content:center;font-size:32px;
@@ -239,7 +234,6 @@
   .tag-card.accent-green{border-left-color:var(--green);}
 
   @media print {
-    /* กลับไปใช้แบบเดิมที่พิมพ์ผ่าน Paperang ได้จริง (เปลืองกระดาษกว่า แต่ใช้งานได้จริง) */
     @page { margin: 0; size: auto; }
     html, body { height: auto !important; margin: 0 !important; padding: 0 !important; }
     body > * { display: none !important; }
@@ -422,13 +416,8 @@
       <button class="confirm-btn" id="printBtn" style="max-width:340px;margin:14px auto 0;display:none;background:var(--gold);box-shadow:0 5px 0 #9c7827;" onclick="doPrint()">🖨️ สั่งพิมพ์ป้าย QR</button>
       <button class="confirm-btn" id="nextToPhotoBtn" style="max-width:340px;margin:14px auto 0;display:none;" onclick="goStep(2)">➜ ต่อไป: ถ่ายรูปสินค้า</button>
 
-      <div style="margin:18px auto 0;max-width:340px;padding:12px 14px;background:var(--bg);border-radius:12px;font-size:13px;color:var(--ink-soft);">
-        ล็อตปัจจุบัน: <b id="batchDisplay" style="color:var(--teal-dark);font-size:16px;">A</b> &nbsp;
-        <button type="button" onclick="changeBatch()" style="border:1.5px solid var(--teal);background:#fff;border-radius:8px;padding:5px 9px;color:var(--teal-dark);font:inherit;font-weight:700;cursor:pointer;">เปลี่ยนล็อต (เริ่มที่ 0000)</button>
-      </div>
-
       <div style="margin-top:22px;font-size:13px;color:var(--ink-soft);border-top:1px solid var(--line);padding-top:16px;">
-        เลขรันอัตโนมัติทีละ 1 เช่น <b>A0000, A0001</b> เมื่อขึ้นล็อตใหม่เปลี่ยนเป็น <b>B0000</b>
+        เลขรันอัตโนมัติทีละ 1 เริ่มจาก <b>0000</b> ไม่มีวันซ้ำ ไม่ต้องคิดเอง ไม่ต้องเขียนมือ
       </div>
     </div>
 
@@ -634,43 +623,22 @@ function renderProductGrid(list){
     card.setAttribute('data-item-id', item.id);
     card.onclick = () => toggleCartItem(item, card);
     card.innerHTML = `
-      <button type="button" class="product-delete-btn" title="ลบสินค้านี้">🗑️</button>
       <div class="product-photo">${item.photo_url ? `<img src="${item.photo_url}" style="width:100%;height:100%;object-fit:cover;">` : getCategoryEmoji(item.name)}</div>
       <div class="product-info">
         <div class="pname">${item.name} (${item.item_code})</div>
         <div class="owner-chip"><span class="owner-dot" style="background:#C99A3E"></span>${item.owners ? item.owners.name : '-'}</div>
       </div>`;
-    card.querySelector('.product-delete-btn').onclick = (event) => {
-      event.stopPropagation();
-      deleteProduct(item);
-    };
     grid.appendChild(card);
   });
 }
 
 document.getElementById('searchInput').addEventListener('input', (e) => {
   const term = e.target.value.trim().toLowerCase();
-  const codeTerm = e.target.value.trim().toUpperCase();
   const filtered = allProductsCache.filter(item =>
-    item.name.toLowerCase().includes(term) || String(item.item_code || '').toUpperCase().includes(codeTerm)
+    item.name.toLowerCase().includes(term) || item.item_code.includes(term)
   );
   renderProductGrid(filtered);
 });
-
-async function deleteProduct(item){
-  const confirmed = await showConfirm('ลบสินค้า "' + item.name + '" รหัส ' + item.item_code + ' ออกจากระบบหรือไม่?\n\nการลบนี้จะหายจาก Supabase และกู้กลับไม่ได้', '🗑️');
-  if (!confirmed) return;
-  const { error } = await sb.from('items').delete().eq('id', item.id);
-  if (error){
-    await showAlert('ลบสินค้าไม่สำเร็จ: ' + error.message, '⚠️');
-    return;
-  }
-  cart = cart.filter(cartItem => cartItem.item.id !== item.id);
-  renderCart();
-  await loadProducts();
-  loadHomeStats();
-  await showAlert('ลบสินค้า ' + item.item_code + ' ออกจากระบบแล้ว', '✅');
-}
 
 // ===== สแกน QR ด้วยกล้อง =====
 let html5QrCode = null;
@@ -1154,77 +1122,23 @@ async function uploadItemPhoto(file, itemCode) {
 }
   
   /* ===== ADD PRODUCT: running code + QR generation flow ===== */
+  // this counter simulates the back-end auto-increment. In the real system,
+  // the next number is looked up from the database, not from the browser.
+  let itemCounter = 186; // สมมติร้านนี้มีสินค้าสะสมแล้ว 186 ชิ้น ตัวถัดไปคือ 0186
   let currentCode = null;
-  let activeBatch = localStorage.getItem('posActiveBatch') || 'A';
 
   function pad4(n){ return String(n).padStart(4,'0'); }
-  function updateBatchDisplay(){ document.getElementById('batchDisplay').textContent = activeBatch; }
-
-  // เลขที่ "ออกแล้วแต่ยังไม่บันทึก" จะถูกจำไว้ในอุปกรณ์นี้ (เผื่อรีเฟรชหน้าเว็บก่อนกดบันทึกสินค้า)
-  // เพื่อไม่ให้ออกเลขซ้ำ ส่วนเลขที่เคยมีอยู่แต่ถูกลบออกจาก Supabase แล้ว จะถูกดึงกลับมาใช้ใหม่ได้เสมอ
-  function getPendingCodes(batch){
-    try { return new Set(JSON.parse(localStorage.getItem('posPendingCodes_' + batch)) || []); }
-    catch { return new Set(); }
-  }
-  function savePendingCodes(batch, set){
-    localStorage.setItem('posPendingCodes_' + batch, JSON.stringify([...set]));
-  }
-  function clearPendingCode(batch, number){
-    const pending = getPendingCodes(batch);
-    pending.delete(number);
-    savePendingCodes(batch, pending);
-  }
-
-  async function getNextCodeForBatch(){
-    const { data, error } = await sb.from('items').select('item_code').like('item_code', activeBatch + '%');
-    if (error) throw error;
-    // activeBatch รับได้เฉพาะ A-Z และ 0-9 จึงต่อเข้ากับรูปแบบรหัสได้โดยตรง
-    const matcher = new RegExp('^' + activeBatch + '(\\d{4})$');
-    const usedInDatabase = new Set();
-    (data || []).forEach(item => {
-      const match = String(item.item_code || '').match(matcher);
-      if (match) usedInDatabase.add(Number(match[1]));
-    });
-    const pending = getPendingCodes(activeBatch);
-    // หาเลขว่างที่น้อยที่สุดที่ไม่ชนทั้งในฐานข้อมูลและเลขที่ออกไปแล้วแต่ยังไม่บันทึก
-    // ถ้าเลขไหนเคยถูกลบออกจาก Supabase มันจะว่างและถูกดึงกลับมาใช้ตรงนี้เอง
-    let nextNumber = 0;
-    while (usedInDatabase.has(nextNumber) || pending.has(nextNumber)) nextNumber++;
-    if (nextNumber > 9999) throw new Error('เลขในล็อตนี้ครบถึง 9999 แล้ว');
-    pending.add(nextNumber);
-    savePendingCodes(activeBatch, pending);
-    return activeBatch + pad4(nextNumber);
-  }
-
-  async function changeBatch(){
-    if (currentCode && !(await showConfirm('เปลี่ยนล็อตตอนนี้ได้ แต่รหัส ' + currentCode + ' ที่เพิ่งสร้างจะถูกข้ามไป ต้องการทำต่อหรือไม่?', '⚠️'))) return;
-    const entered = window.prompt('พิมพ์ชื่อล็อตใหม่ (ใช้ A, B, C หรือ A1 ได้):', activeBatch);
-    if (entered === null) return;
-    const nextBatch = entered.trim().toUpperCase();
-    if (!/^[A-Z0-9]{1,8}$/.test(nextBatch)) {
-      await showAlert('ชื่อล็อตใช้ได้เฉพาะ A-Z และ 0-9 ความยาวไม่เกิน 8 ตัว', '⚠️');
-      return;
-    }
-    activeBatch = nextBatch;
-    localStorage.setItem('posActiveBatch', activeBatch);
-    currentCode = null;
-    updateBatchDisplay();
-    resetAdd();
-    await showAlert('เปลี่ยนเป็นล็อต ' + activeBatch + ' แล้ว ป้ายใบแรกจะเป็น ' + activeBatch + '0000', '✅');
-  }
-
-  document.addEventListener('DOMContentLoaded', updateBatchDisplay);
 
   let currentOwnerId = null; // จะตั้งค่าตอนเลือกเจ้าของสินค้าในขั้นตอนที่ 4 ของฟอร์ม
 
 async function generateCode(){
-  try {
-    currentCode = await getNextCodeForBatch();
-  } catch (error) {
+  const { data, error } = await sb.rpc('get_next_item_code');
+  if (error) {
     console.error('ออกรหัสไม่สำเร็จ:', error.message);
-    await showAlert('ออกรหัสไม่สำเร็จ: ' + (error.message || 'ลองใหม่อีกครั้ง'));
+    await showAlert('เกิดข้อผิดพลาด ลองใหม่อีกครั้ง');
     return;
   }
+  currentCode = data;
   document.getElementById('codeDisplay').textContent = currentCode.split('').join(' ');
   document.querySelectorAll('.codeReminder').forEach(el=> el.textContent = currentCode);
 
@@ -1338,9 +1252,6 @@ async function finishAdd(){
     await showAlert('เกิดข้อผิดพลาด: ' + error.message);
     return;
   }
-
-  const savedMatch = String(currentCode).match(new RegExp('^' + activeBatch + '(\\d{4})$'));
-  if (savedMatch) clearPendingCode(activeBatch, Number(savedMatch[1]));
 
   ['codeStepCard','photoStepCard','detailStepCard','ownerStepCard'].forEach(id=> document.getElementById(id).style.display='none');
   document.getElementById('doneStepCard').style.display='block';
