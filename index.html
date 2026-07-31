@@ -1258,13 +1258,73 @@ async function generateCode(){
   document.getElementById('printBtn').style.display = 'block';
 }
 
-  function doPrint(){
+  async function doPrint(){
     // QR สำหรับพิมพ์ถูกสร้างไว้ล่วงหน้าแล้วตอนกดสร้างรหัส (กันปัญหาบน iOS ที่ QR เรนเดอร์ไม่ทันตอนสั่งพิมพ์)
-    window.print();
+    // พยายามแชร์เป็นรูปภาพตรงเข้า Share Sheet ก่อน (กด Paperang ได้เลย ไม่ผ่าน print dialog
+    // จึงไม่มี footer แปลกๆ ที่ iOS Safari แปะให้อัตโนมัติ) ถ้าอุปกรณ์ไม่รองรับค่อย fallback ไป window.print()
+    const shared = await tryShareLabel();
+    if (!shared) {
+      window.print();
+    }
     document.getElementById('printBtn').textContent = '✓ พิมพ์ป้ายแล้ว';
     document.getElementById('printBtn').style.background = 'var(--green)';
     document.getElementById('printBtn').style.boxShadow = '0 5px 0 #3d6b48';
     document.getElementById('nextToPhotoBtn').style.display = 'block';
+  }
+
+  // แปลง QR + เลขรหัส เป็นรูปภาพเดียว แล้วยิงเข้า native Share Sheet โดยตรง
+  // คืนค่า true = แชร์ไปแล้ว (หรือผู้ใช้กดยกเลิกเอง), false = อุปกรณ์นี้ไม่รองรับให้ไป fallback ที่ window.print()
+  async function tryShareLabel(){
+    if (!navigator.share) return false; // เบราว์เซอร์นี้ไม่มี Web Share API เลย (เช่น เดสก์ท็อปบางตัว)
+    try {
+      const canvas = await renderLabelCanvas();
+      if (!canvas) return false;
+      const blob = await new Promise(resolve => canvas.toBlob(resolve, 'image/png'));
+      if (!blob) return false;
+      const file = new File([blob], 'label-' + currentCode + '.png', { type: 'image/png' });
+      if (!navigator.canShare || !navigator.canShare({ files: [file] })) return false; // แชร์ไฟล์รูปไม่ได้ -> fallback
+      await navigator.share({ files: [file], title: 'ป้าย QR ' + currentCode });
+      return true;
+    } catch (err) {
+      if (err && err.name === 'AbortError') return true; // ผู้ใช้กดปิด share sheet เอง ถือว่าจบขั้นตอนแล้ว ไม่ต้อง fallback
+      console.error('แชร์ป้ายไม่สำเร็จ:', err);
+      return false;
+    }
+  }
+
+  // วาด QR (320px) + เลขรหัสใต้ QR ลงบน canvas เดียว ด้วยสัดส่วน/ระยะห่างเดิมของป้ายที่พิมพ์อยู่
+  function renderLabelCanvas(){
+    return new Promise((resolve) => {
+      const qrEl = document.querySelector('#printQrHolder img, #printQrHolder canvas');
+      if (!qrEl) { resolve(null); return; }
+
+      const size = 320, padding = 60, textGap = 48, textHeight = 60;
+      const canvas = document.createElement('canvas');
+      canvas.width = size + padding * 2;
+      canvas.height = padding + size + textGap + textHeight;
+      const ctx = canvas.getContext('2d');
+      ctx.fillStyle = '#ffffff';
+      ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+      const draw = (source) => {
+        ctx.drawImage(source, padding, padding, size, size);
+        ctx.fillStyle = '#1B413C';
+        ctx.font = '800 34px "IBM Plex Sans Thai", "Noto Sans Thai", sans-serif';
+        ctx.textAlign = 'center';
+        ctx.textBaseline = 'top';
+        ctx.fillText('ITEM-' + currentCode, canvas.width / 2, padding + size + textGap);
+        resolve(canvas);
+      };
+
+      if (qrEl.tagName === 'CANVAS') {
+        draw(qrEl);
+      } else if (qrEl.complete && qrEl.naturalWidth > 0) {
+        draw(qrEl);
+      } else {
+        qrEl.onload = () => draw(qrEl);
+        qrEl.onerror = () => resolve(null);
+      }
+    });
   }
 
   function goStep(n){
