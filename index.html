@@ -420,6 +420,7 @@
 
       <button class="confirm-btn" id="genCodeBtn" style="max-width:340px;margin:0 auto;display:block;" onclick="generateCode()">🏷️ สร้างรหัส + พิมพ์ QR</button>
       <button class="confirm-btn" id="printBtn" style="max-width:340px;margin:14px auto 0;display:none;background:var(--gold);box-shadow:0 5px 0 #9c7827;" onclick="doPrint()">🖨️ สั่งพิมพ์ป้าย QR</button>
+      <button class="confirm-btn" id="saveImgBtn" style="max-width:340px;margin:10px auto 0;display:none;background:var(--teal);box-shadow:0 5px 0 var(--teal-dark);" onclick="saveLabelAsImage()">💾 บันทึกเป็นรูปภาพ</button>
       <button class="confirm-btn" id="nextToPhotoBtn" style="max-width:340px;margin:14px auto 0;display:none;" onclick="goStep(2)">➜ ต่อไป: ถ่ายรูปสินค้า</button>
 
       <div style="margin:18px auto 0;max-width:340px;padding:12px 14px;background:var(--bg);border-radius:12px;font-size:13px;color:var(--ink-soft);">
@@ -1256,39 +1257,37 @@ async function generateCode(){
   document.getElementById('qrWrap').style.display = 'flex';
   document.getElementById('genCodeBtn').style.display = 'none';
   document.getElementById('printBtn').style.display = 'block';
+  document.getElementById('saveImgBtn').style.display = 'block';
 }
 
-  async function doPrint(){
+  function doPrint(){
     // QR สำหรับพิมพ์ถูกสร้างไว้ล่วงหน้าแล้วตอนกดสร้างรหัส (กันปัญหาบน iOS ที่ QR เรนเดอร์ไม่ทันตอนสั่งพิมพ์)
-    // พยายามแชร์เป็นรูปภาพตรงเข้า Share Sheet ก่อน (กด Paperang ได้เลย ไม่ผ่าน print dialog
-    // จึงไม่มี footer แปลกๆ ที่ iOS Safari แปะให้อัตโนมัติ) ถ้าอุปกรณ์ไม่รองรับค่อย fallback ไป window.print()
-    const shared = await tryShareLabel();
-    if (!shared) {
-      window.print();
-    }
+    window.print();
     document.getElementById('printBtn').textContent = '✓ พิมพ์ป้ายแล้ว';
     document.getElementById('printBtn').style.background = 'var(--green)';
     document.getElementById('printBtn').style.boxShadow = '0 5px 0 #3d6b48';
     document.getElementById('nextToPhotoBtn').style.display = 'block';
   }
 
-  // แปลง QR + เลขรหัส เป็นรูปภาพเดียว แล้วยิงเข้า native Share Sheet โดยตรง
-  // คืนค่า true = แชร์ไปแล้ว (หรือผู้ใช้กดยกเลิกเอง), false = อุปกรณ์นี้ไม่รองรับให้ไป fallback ที่ window.print()
-  async function tryShareLabel(){
-    if (!navigator.share) return false; // เบราว์เซอร์นี้ไม่มี Web Share API เลย (เช่น เดสก์ท็อปบางตัว)
+  // บันทึกป้าย (QR + เลขรหัส) เป็นไฟล์รูปภาพ ให้ผู้ใช้ไปเปิดแอป Paperang เองจาก Photos
+  // (Paperang ไม่รองรับรับรูปผ่าน native share sheet จึงต้องเซฟเป็นไฟล์แทน)
+  async function saveLabelAsImage(){
     try {
       const canvas = await renderLabelCanvas();
-      if (!canvas) return false;
-      const blob = await new Promise(resolve => canvas.toBlob(resolve, 'image/png'));
-      if (!blob) return false;
-      const file = new File([blob], 'label-' + currentCode + '.png', { type: 'image/png' });
-      if (!navigator.canShare || !navigator.canShare({ files: [file] })) return false; // แชร์ไฟล์รูปไม่ได้ -> fallback
-      await navigator.share({ files: [file], title: 'ป้าย QR ' + currentCode });
-      return true;
+      if (!canvas) {
+        await showAlert('ยังไม่ได้สร้าง QR กรุณากด "สร้างรหัส + พิมพ์ QR" ก่อน', '⚠️');
+        return;
+      }
+      const dataUrl = canvas.toDataURL('image/png');
+      const link = document.createElement('a');
+      link.href = dataUrl;
+      link.download = 'label-' + currentCode + '.png';
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
     } catch (err) {
-      if (err && err.name === 'AbortError') return true; // ผู้ใช้กดปิด share sheet เอง ถือว่าจบขั้นตอนแล้ว ไม่ต้อง fallback
-      console.error('แชร์ป้ายไม่สำเร็จ:', err);
-      return false;
+      console.error('บันทึกรูปไม่สำเร็จ:', err);
+      await showAlert('บันทึกรูปไม่สำเร็จ ลองใหม่อีกครั้ง', '⚠️');
     }
   }
 
@@ -1344,6 +1343,7 @@ async function generateCode(){
   document.getElementById('qrWrap').style.display = 'none';
   document.getElementById('genCodeBtn').style.display = 'block';
   document.getElementById('printBtn').style.display = 'none';
+  document.getElementById('saveImgBtn').style.display = 'none';
   document.getElementById('printBtn').textContent = '🖨️ สั่งพิมพ์ป้าย QR';
   document.getElementById('printBtn').style.background = 'var(--gold)';
   document.getElementById('printBtn').style.boxShadow = '0 5px 0 #9c7827';
