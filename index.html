@@ -241,7 +241,7 @@
   @media print {
     /* กลับไปใช้แบบเดิมที่พิมพ์ผ่าน Paperang ได้จริง (เปลืองกระดาษกว่า แต่ใช้งานได้จริง) */
     @page { margin: 0; size: auto; }
-    html, body { height: auto !important; margin: 0 !important; padding: 0 !important; }
+    html, body { height: auto !important; margin: 0 !important; padding: 0 !important; background: #fff !important; }
     body > * { display: none !important; }
     #printLabel {
       display: block !important;
@@ -249,6 +249,7 @@
       padding: 60px 20px;
       text-align: center;
       box-sizing: border-box;
+      background: #fff !important;
     }
     #printLabel #printQrHolder { display: block !important; margin: 0 auto; width: 320px; }
     #printLabel #printQrHolder img, #printLabel #printQrHolder canvas { display: block !important; width: 320px !important; height: 320px !important; margin: 0 auto; }
@@ -1279,12 +1280,26 @@ async function generateCode(){
         return;
       }
       const dataUrl = canvas.toDataURL('image/png');
-      const link = document.createElement('a');
-      link.href = dataUrl;
-      link.download = 'label-' + currentCode + '.png';
-      document.body.appendChild(link);
-      link.click();
-      link.remove();
+      const isIOS = /iP(hone|od|ad)/.test(navigator.userAgent) ||
+        (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1); // iPad ที่ส่ง user agent เป็น Mac
+
+      if (isIOS) {
+        // iOS Safari ไม่รองรับ attribute "download" เลย (กดแล้วไม่ทำอะไรเลย) — เปิดรูปในแท็บใหม่แทน
+        // แล้วให้ผู้ใช้กดค้างที่รูป เลือก "บันทึกลงรูปภาพ" เอง
+        const win = window.open(dataUrl, '_blank');
+        if (!win) {
+          await showAlert('เบราว์เซอร์บล็อกการเปิดแท็บใหม่ กรุณาอนุญาต Pop-up แล้วลองอีกครั้ง', '⚠️');
+          return;
+        }
+        await showAlert('รูปเปิดในแท็บใหม่แล้ว กดค้างที่รูป แล้วเลือก "บันทึกลงรูปภาพ"', '💾');
+      } else {
+        const link = document.createElement('a');
+        link.href = dataUrl;
+        link.download = 'label-' + currentCode + '.png';
+        document.body.appendChild(link);
+        link.click();
+        link.remove();
+      }
     } catch (err) {
       console.error('บันทึกรูปไม่สำเร็จ:', err);
       await showAlert('บันทึกรูปไม่สำเร็จ ลองใหม่อีกครั้ง', '⚠️');
