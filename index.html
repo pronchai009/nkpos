@@ -1162,21 +1162,6 @@ async function uploadItemPhoto(file, itemCode) {
   function pad4(n){ return String(n).padStart(4,'0'); }
   function updateBatchDisplay(){ document.getElementById('batchDisplay').textContent = activeBatch; }
 
-  // เลขที่ "ออกแล้วแต่ยังไม่บันทึก" จะถูกจำไว้ในอุปกรณ์นี้ (เผื่อรีเฟรชหน้าเว็บก่อนกดบันทึกสินค้า)
-  // เพื่อไม่ให้ออกเลขซ้ำ ส่วนเลขที่เคยมีอยู่แต่ถูกลบออกจาก Supabase แล้ว จะถูกดึงกลับมาใช้ใหม่ได้เสมอ
-  function getPendingCodes(batch){
-    try { return new Set(JSON.parse(localStorage.getItem('posPendingCodes_' + batch)) || []); }
-    catch { return new Set(); }
-  }
-  function savePendingCodes(batch, set){
-    localStorage.setItem('posPendingCodes_' + batch, JSON.stringify([...set]));
-  }
-  function clearPendingCode(batch, number){
-    const pending = getPendingCodes(batch);
-    pending.delete(number);
-    savePendingCodes(batch, pending);
-  }
-
   async function getNextCodeForBatch(){
     const { data, error } = await sb.from('items').select('item_code').like('item_code', activeBatch + '%');
     if (error) throw error;
@@ -1187,14 +1172,12 @@ async function uploadItemPhoto(file, itemCode) {
       const match = String(item.item_code || '').match(matcher);
       if (match) usedInDatabase.add(Number(match[1]));
     });
-    const pending = getPendingCodes(activeBatch);
-    // หาเลขว่างที่น้อยที่สุดที่ไม่ชนทั้งในฐานข้อมูลและเลขที่ออกไปแล้วแต่ยังไม่บันทึก
-    // ถ้าเลขไหนเคยถูกลบออกจาก Supabase มันจะว่างและถูกดึงกลับมาใช้ตรงนี้เอง
+    // หาเลขว่างที่น้อยที่สุดจากฐานข้อมูลจริงล้วนๆ (ไม่พึ่ง localStorage อีกต่อไป
+    // เพราะถ้าเคยกด "สร้างรหัส" แล้วไม่บันทึกสินค้าจนจบ เลขที่จองไว้จะค้างอยู่ตลอดไป
+    // ทำให้เลขวิ่งไปเรื่อยๆ ไม่ตรงกับฐานข้อมูลจริง — ตอนนี้เช็คสดจาก Supabase ทุกครั้งแทน)
     let nextNumber = 0;
-    while (usedInDatabase.has(nextNumber) || pending.has(nextNumber)) nextNumber++;
+    while (usedInDatabase.has(nextNumber)) nextNumber++;
     if (nextNumber > 9999) throw new Error('เลขในล็อตนี้ครบถึง 9999 แล้ว');
-    pending.add(nextNumber);
-    savePendingCodes(activeBatch, pending);
     return activeBatch + pad4(nextNumber);
   }
 
@@ -1273,24 +1256,39 @@ async function generateCode(){
   // บันทึกป้าย (QR + เลขรหัส) เป็นไฟล์รูปภาพ ให้ผู้ใช้ไปเปิดแอป Paperang เองจาก Photos
   // (Paperang ไม่รองรับรับรูปผ่าน native share sheet จึงต้องเซฟเป็นไฟล์แทน)
   async function saveLabelAsImage(){
+    const isIOS = /iP(hone|od|ad)/.test(navigator.userAgent) ||
+      (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1); // iPad ที่ส่ง user agent เป็น Mac
+
+    // เปิดหน้าต่างเปล่าไว้ทันทีแบบ sync ตั้งแต่ยังไม่มี await เกิดขึ้นเลย เพื่อไม่ให้ iOS Safari
+    // มองว่าเป็น pop-up ที่ไม่ได้มาจากการกดของผู้ใช้โดยตรงแล้วบล็อกทิ้ง
+    let iosWin = null;
+    if (isIOS) iosWin = window.open('', '_blank');
+
     try {
       const canvas = await renderLabelCanvas();
       if (!canvas) {
+        if (iosWin) iosWin.close();
         await showAlert('ยังไม่ได้สร้าง QR กรุณากด "สร้างรหัส + พิมพ์ QR" ก่อน', '⚠️');
         return;
       }
       const dataUrl = canvas.toDataURL('image/png');
-      const isIOS = /iP(hone|od|ad)/.test(navigator.userAgent) ||
-        (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1); // iPad ที่ส่ง user agent เป็น Mac
 
       if (isIOS) {
-        // iOS Safari ไม่รองรับ attribute "download" เลย (กดแล้วไม่ทำอะไรเลย) — เปิดรูปในแท็บใหม่แทน
-        // แล้วให้ผู้ใช้กดค้างที่รูป เลือก "บันทึกลงรูปภาพ" เอง
-        const win = window.open(dataUrl, '_blank');
-        if (!win) {
+        if (!iosWin) {
           await showAlert('เบราว์เซอร์บล็อกการเปิดแท็บใหม่ กรุณาอนุญาต Pop-up แล้วลองอีกครั้ง', '⚠️');
           return;
         }
+        // นำทางตรงไปที่ data: URL บางเวอร์ชันของ iOS Safari จะโชว์แท็บว่างเปล่า
+        // จึงเขียน HTML ที่มี <img> ฝัง dataURL ไว้ข้างในแทน ซึ่งแสดงผลได้เสถียรกว่า
+        iosWin.document.open();
+        iosWin.document.write(
+          '<!DOCTYPE html><html><head><meta name="viewport" content="width=device-width,initial-scale=1">' +
+          '<title>ป้าย ' + currentCode + '</title></head>' +
+          '<body style="margin:0;background:#000;display:flex;align-items:center;justify-content:center;min-height:100vh;">' +
+          '<img src="' + dataUrl + '" style="max-width:100%;height:auto;display:block;" alt="label ' + currentCode + '">' +
+          '</body></html>'
+        );
+        iosWin.document.close();
         await showAlert('รูปเปิดในแท็บใหม่แล้ว กดค้างที่รูป แล้วเลือก "บันทึกลงรูปภาพ"', '💾');
       } else {
         const link = document.createElement('a');
@@ -1301,6 +1299,7 @@ async function generateCode(){
         link.remove();
       }
     } catch (err) {
+      if (iosWin) iosWin.close();
       console.error('บันทึกรูปไม่สำเร็จ:', err);
       await showAlert('บันทึกรูปไม่สำเร็จ ลองใหม่อีกครั้ง', '⚠️');
     }
@@ -1413,9 +1412,6 @@ async function finishAdd(){
     await showAlert('เกิดข้อผิดพลาด: ' + error.message);
     return;
   }
-
-  const savedMatch = String(currentCode).match(new RegExp('^' + activeBatch + '(\\d{4})$'));
-  if (savedMatch) clearPendingCode(activeBatch, Number(savedMatch[1]));
 
   ['codeStepCard','photoStepCard','detailStepCard','ownerStepCard'].forEach(id=> document.getElementById(id).style.display='none');
   document.getElementById('doneStepCard').style.display='block';
