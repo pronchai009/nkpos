@@ -792,6 +792,15 @@ async function confirmSale(){
   loadProducts();
 }
   function go(name){
+    // ถ้ากำลังจะออกจากหน้า "เพิ่มสินค้า" ทั้งที่สร้างรหัสไว้แล้วแต่ยังไม่บันทึก ให้คืนเลขที่จองไว้ทันที
+    // (ไม่ต้องรอ 5 นาที) เป็นการช่วยที่ทำได้ดีที่สุด ณ ตอนนี้ — กรณีปิดแท็บ/ปิดเบราว์เซอร์เฉยๆ จะยังต้องรอหมดอายุตามเวลาอยู่ดี
+    const previousScreen = document.querySelector('.screen.active');
+    if (previousScreen && previousScreen.id === 'add' && name !== 'add' && currentCode) {
+      releaseCurrentReservation();
+      currentCode = null;
+      resetAdd();
+    }
+
     document.querySelectorAll('.screen').forEach(s=>s.classList.remove('active'));
     document.querySelectorAll('.tab').forEach(t=>t.classList.remove('active'));
     document.getElementById(name).classList.add('active');
@@ -1157,32 +1166,64 @@ async function uploadItemPhoto(file, itemCode) {
   
   /* ===== ADD PRODUCT: running code + QR generation flow ===== */
   let currentCode = null;
+  let currentReservation = null; // { batch, number } ของรหัสที่จองไว้แต่ยังไม่บันทึกสำเร็จ
   let activeBatch = localStorage.getItem('posActiveBatch') || 'A';
+  const RESERVATION_TTL_MINUTES = 5; // เลขที่จองไว้เกินเวลานี้โดยไม่บันทึก จะถือว่าหมดอายุ คืนให้เครื่องอื่นใช้ได้เอง
 
   function pad4(n){ return String(n).padStart(4,'0'); }
   function updateBatchDisplay(){ document.getElementById('batchDisplay').textContent = activeBatch; }
 
   async function getNextCodeForBatch(){
-    const { data, error } = await sb.from('items').select('item_code').like('item_code', activeBatch + '%');
-    if (error) throw error;
+    const cutoff = new Date(Date.now() - RESERVATION_TTL_MINUTES * 60 * 1000).toISOString();
+
+    const [{ data: items, error: itemsError }, { data: reservations, error: resError }] = await Promise.all([
+      sb.from('items').select('item_code').like('item_code', activeBatch + '%'),
+      sb.from('code_reservations').select('number').eq('batch', activeBatch).gte('reserved_at', cutoff)
+    ]);
+    if (itemsError) throw itemsError;
+    if (resError) throw resError;
+
     // activeBatch รับได้เฉพาะ A-Z และ 0-9 จึงต่อเข้ากับรูปแบบรหัสได้โดยตรง
     const matcher = new RegExp('^' + activeBatch + '(\\d{4})$');
-    const usedInDatabase = new Set();
-    (data || []).forEach(item => {
+    const usedNumbers = new Set();
+    (items || []).forEach(item => {
       const match = String(item.item_code || '').match(matcher);
-      if (match) usedInDatabase.add(Number(match[1]));
+      if (match) usedNumbers.add(Number(match[1]));
     });
-    // หาเลขว่างที่น้อยที่สุดจากฐานข้อมูลจริงล้วนๆ (ไม่พึ่ง localStorage อีกต่อไป
-    // เพราะถ้าเคยกด "สร้างรหัส" แล้วไม่บันทึกสินค้าจนจบ เลขที่จองไว้จะค้างอยู่ตลอดไป
-    // ทำให้เลขวิ่งไปเรื่อยๆ ไม่ตรงกับฐานข้อมูลจริง — ตอนนี้เช็คสดจาก Supabase ทุกครั้งแทน)
+    // เลขที่เครื่องอื่นกำลังจองอยู่ตอนนี้ (ยังไม่หมดอายุ) ให้ข้ามไปเลขถัดไปแทน
+    (reservations || []).forEach(r => usedNumbers.add(r.number));
+
     let nextNumber = 0;
-    while (usedInDatabase.has(nextNumber)) nextNumber++;
+    while (usedNumbers.has(nextNumber)) nextNumber++;
     if (nextNumber > 9999) throw new Error('เลขในล็อตนี้ครบถึง 9999 แล้ว');
+
+    // จองเลขนี้ไว้ทันที กันเครื่องอื่นแย่งเลขเดียวกันระหว่างที่เครื่องนี้ยังกรอกฟอร์มไม่เสร็จ
+    const { error: insertError } = await sb.from('code_reservations').upsert(
+      { batch: activeBatch, number: nextNumber, reserved_at: new Date().toISOString() },
+      { onConflict: 'batch,number' }
+    );
+    if (insertError) throw insertError;
+
+    currentReservation = { batch: activeBatch, number: nextNumber };
     return activeBatch + pad4(nextNumber);
+  }
+
+  // ปล่อยเลขที่จองไว้คืนทันที (ตอนบันทึกสำเร็จ, เปลี่ยนล็อตข้ามรหัส, หรือออกจากหน้าเพิ่มสินค้ากลางทาง)
+  // ให้เครื่องอื่นใช้เลขนี้ได้เลย ไม่ต้องรอครบ 5 นาที — ถ้าลบไม่สำเร็จก็ไม่เป็นไร เดี๋ยวหมดอายุเองตามเวลา
+  async function releaseCurrentReservation(){
+    if (!currentReservation) return;
+    const { batch, number } = currentReservation;
+    currentReservation = null;
+    try {
+      await sb.from('code_reservations').delete().eq('batch', batch).eq('number', number);
+    } catch (err) {
+      console.error('ปล่อยเลขที่จองไว้ไม่สำเร็จ (จะหมดอายุเองใน ' + RESERVATION_TTL_MINUTES + ' นาที):', err.message);
+    }
   }
 
   async function changeBatch(){
     if (currentCode && !(await showConfirm('เปลี่ยนล็อตตอนนี้ได้ แต่รหัส ' + currentCode + ' ที่เพิ่งสร้างจะถูกข้ามไป ต้องการทำต่อหรือไม่?', '⚠️'))) return;
+    await releaseCurrentReservation();
     const entered = window.prompt('พิมพ์ชื่อล็อตใหม่ (ใช้ A, B, C หรือ A1 ได้):', activeBatch);
     if (entered === null) return;
     const nextBatch = entered.trim().toUpperCase();
@@ -1409,9 +1450,19 @@ async function finishAdd(){
 
   if (error) {
     console.error('บันทึกสินค้าไม่สำเร็จ:', error.message);
+    if (error.code === '23505') {
+      // เลขนี้ถูกอีกเครื่องบันทึกไปจริงแล้วพอดี (สู้กันตอนหมดเวลาจอง) — เลขนี้ใช้ไม่ได้แล้ว ต้องออกรหัสใหม่
+      await releaseCurrentReservation();
+      currentCode = null;
+      resetAdd();
+      await showAlert('รหัสนี้เพิ่งถูกอีกเครื่องบันทึกไปพอดี กรุณากด "สร้างรหัส + พิมพ์ QR" ใหม่อีกครั้ง', '⚠️');
+      return;
+    }
     await showAlert('เกิดข้อผิดพลาด: ' + error.message);
     return;
   }
+
+  await releaseCurrentReservation();
 
   ['codeStepCard','photoStepCard','detailStepCard','ownerStepCard'].forEach(id=> document.getElementById(id).style.display='none');
   document.getElementById('doneStepCard').style.display='block';
